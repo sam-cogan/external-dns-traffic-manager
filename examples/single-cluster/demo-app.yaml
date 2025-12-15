@@ -1,0 +1,117 @@
+---
+# Demo Application Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: demo-app
+  namespace: default
+  labels:
+    app: demo-app
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: demo-app
+  template:
+    metadata:
+      labels:
+        app: demo-app
+    spec:
+      containers:
+        - name: nginx
+          image: nginx:alpine
+          ports:
+            - containerPort: 80
+          volumeMounts:
+            - name: content
+              mountPath: /usr/share/nginx/html
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 10
+      volumes:
+        - name: content
+          configMap:
+            name: demo-app-content
+---
+# ConfigMap with custom content
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: demo-app-content
+  namespace: default
+data:
+  index.html: |
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Traffic Manager Demo</title>
+        <style>
+            body {
+                font-family: Arial, sans-serif;
+                max-width: 800px;
+                margin: 50px auto;
+                padding: 20px;
+                background: #f0f0f0;
+            }
+            .card {
+                background: white;
+                padding: 30px;
+                border-radius: 8px;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            }
+            h1 { color: #0078d4; }
+            .status { 
+                background: #d4edda;
+                padding: 10px;
+                border-radius: 4px;
+                margin: 20px 0;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="card">
+            <h1>🚀 Traffic Manager Demo App</h1>
+            <div class="status">
+                <strong>Status:</strong> Running
+            </div>
+            <p>This application is being routed through Azure Traffic Manager.</p>
+            <p><strong>Region:</strong> Primary</p>
+        </div>
+    </body>
+    </html>
+---
+# Service with Traffic Manager annotations
+apiVersion: v1
+kind: Service
+metadata:
+  name: demo-app
+  namespace: default
+  annotations:
+    # Standard External DNS annotation
+    external-dns.alpha.kubernetes.io/hostname: demo.example.com  # UPDATE: Your hostname
+    
+    # Enable Traffic Manager
+    external-dns.alpha.kubernetes.io/webhook-traffic-manager-enabled: "true"
+    
+    # Traffic Manager Configuration
+    external-dns.alpha.kubernetes.io/webhook-traffic-manager-resource-group: "your-tm-rg"  # UPDATE: Your TM resource group
+    external-dns.alpha.kubernetes.io/webhook-traffic-manager-profile-name: "demo-profile"
+    external-dns.alpha.kubernetes.io/webhook-traffic-manager-endpoint-name: "primary"
+    external-dns.alpha.kubernetes.io/webhook-traffic-manager-endpoint-location: "eastus"  # UPDATE: Your region
+    external-dns.alpha.kubernetes.io/webhook-traffic-manager-weight: "100"
+    
+    # Health Check Configuration
+    external-dns.alpha.kubernetes.io/webhook-traffic-manager-monitor-protocol: "HTTP"
+    external-dns.alpha.kubernetes.io/webhook-traffic-manager-monitor-port: "80"
+    external-dns.alpha.kubernetes.io/webhook-traffic-manager-monitor-path: "/"
+spec:
+  type: LoadBalancer
+  ports:
+    - port: 80
+      targetPort: 80
+      protocol: TCP
+  selector:
+    app: demo-app

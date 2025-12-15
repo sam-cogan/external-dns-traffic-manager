@@ -1,0 +1,135 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: demo-app-west
+  namespace: default
+  labels:
+    app: demo-app
+    region: west
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: demo-app
+      region: west
+  template:
+    metadata:
+      labels:
+        app: demo-app
+        region: west
+    spec:
+      containers:
+        - name: nginx
+          image: nginx:alpine
+          ports:
+            - containerPort: 80
+          volumeMounts:
+            - name: content
+              mountPath: /usr/share/nginx/html
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 10
+      volumes:
+        - name: content
+          configMap:
+            name: demo-app-west-content
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: demo-app-west-content
+  namespace: default
+data:
+  index.html: |
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Traffic Manager - West US</title>
+        <style>
+            body {
+                font-family: Arial, sans-serif;
+                max-width: 800px;
+                margin: 50px auto;
+                padding: 20px;
+                background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            }
+            .card {
+                background: white;
+                padding: 40px;
+                border-radius: 12px;
+                box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            }
+            h1 { 
+                color: #f5576c; 
+                margin-bottom: 10px;
+            }
+            .region {
+                background: #fce4ec;
+                padding: 15px;
+                border-radius: 8px;
+                margin: 20px 0;
+                border-left: 4px solid #f5576c;
+            }
+            .status { 
+                background: #d4edda;
+                padding: 15px;
+                border-radius: 8px;
+                margin: 20px 0;
+                border-left: 4px solid #28a745;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="card">
+            <h1>🌐 Multi-Region Traffic Manager Demo</h1>
+            <div class="region">
+                <strong>Region:</strong> West US 🇺🇸<br>
+                <strong>Weight:</strong> 50%
+            </div>
+            <div class="status">
+                <strong>Status:</strong> ✅ Healthy
+            </div>
+            <p>This application is deployed across multiple regions with Azure Traffic Manager providing global load balancing.</p>
+            <p><em>Try refreshing - you might see the East US version!</em></p>
+        </div>
+    </body>
+    </html>
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: demo-app-west
+  namespace: default
+  annotations:
+    # DNS hostname - same for both regions
+    external-dns.alpha.kubernetes.io/hostname: multi-demo.example.com  # UPDATE: Your hostname
+    
+    # Enable Traffic Manager
+    external-dns.alpha.kubernetes.io/webhook-traffic-manager-enabled: "true"
+    
+    # Traffic Manager Configuration - SHARED PROFILE
+    external-dns.alpha.kubernetes.io/webhook-traffic-manager-resource-group: "your-tm-rg"  # UPDATE
+    external-dns.alpha.kubernetes.io/webhook-traffic-manager-profile-name: "multi-demo-profile"  # Same for both
+    
+    # Endpoint Configuration - UNIQUE PER REGION
+    external-dns.alpha.kubernetes.io/webhook-traffic-manager-endpoint-name: "demo-west"
+    external-dns.alpha.kubernetes.io/webhook-traffic-manager-endpoint-location: "westus"
+    external-dns.alpha.kubernetes.io/webhook-traffic-manager-weight: "50"  # 50% traffic
+    
+    # Health Check Configuration
+    external-dns.alpha.kubernetes.io/webhook-traffic-manager-monitor-protocol: "HTTP"
+    external-dns.alpha.kubernetes.io/webhook-traffic-manager-monitor-port: "80"
+    external-dns.alpha.kubernetes.io/webhook-traffic-manager-monitor-path: "/"
+spec:
+  type: LoadBalancer
+  ports:
+    - port: 80
+      targetPort: 80
+      protocol: TCP
+  selector:
+    app: demo-app
+    region: west

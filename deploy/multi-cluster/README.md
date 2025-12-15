@@ -13,38 +13,36 @@ The multi-cluster deployment demonstrates:
 
 ## Architecture
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                         Azure DNS Zone                          │
-│                     (lab-ms.samcogan.com)                       │
-│                                                                 │
-│  A Records:                                                     │
-│    multi-east.lab-ms.samcogan.com → 40.xxx.xxx.xxx            │
-│    multi-west.lab-ms.samcogan.com → 13.xxx.xxx.xxx            │
-│                                                                 │
-│  CNAME Record:                                                  │
-│    multi.lab-ms.samcogan.com → multi-lab-ms-...trafficmgr.net │
-└─────────────────────────────────────────────────────────────────┘
-                                    ↓
-┌─────────────────────────────────────────────────────────────────┐
-│                   Traffic Manager Profile                       │
-│                  (Priority Routing Method)                      │
-│                                                                 │
-│  Endpoints:                                                     │
-│    ├─ multi-demo-east (Priority 1) → multi-east...com         │
-│    └─ multi-demo-west (Priority 2) → multi-west...com         │
-└─────────────────────────────────────────────────────────────────┘
-                    ↓                           ↓
-        ┌───────────────────┐       ┌───────────────────┐
-        │  AKS Cluster East │       │  AKS Cluster West │
-        │   (East US)       │       │   (West US)       │
-        │                   │       │                   │
-        │  External DNS +   │       │  External DNS +   │
-        │  TM Webhook       │       │  TM Webhook       │
-        │       ↓           │       │       ↓           │
-        │  Demo App         │       │  Demo App         │
-        │  LoadBalancer     │       │  LoadBalancer     │
-        └───────────────────┘       └───────────────────┘
+```mermaid
+graph TB
+    subgraph DNS["Azure DNS Zone<br/>(lab-ms.samcogan.com)"]
+        ARecord1["A Record: multi-east → 40.xxx.xxx.xxx"]
+        ARecord2["A Record: multi-west → 13.xxx.xxx.xxx"]
+        CNAME["CNAME: multi → TM profile"]
+    end
+    
+    subgraph TM["Traffic Manager Profile<br/>(Priority Routing Method)"]
+        Endpoint1["multi-demo-east (Priority 1)"]
+        Endpoint2["multi-demo-west (Priority 2)"]
+    end
+    
+    subgraph East["AKS Cluster East (East US)"]
+        EDNSEast["External DNS + TM Webhook"]
+        AppEast["Demo App LoadBalancer"]
+        EDNSEast --> AppEast
+    end
+    
+    subgraph West["AKS Cluster West (West US)"]
+        EDNSWest["External DNS + TM Webhook"]
+        AppWest["Demo App LoadBalancer"]
+        EDNSWest --> AppWest
+    end
+    
+    CNAME --> TM
+    Endpoint1 --> ARecord1
+    Endpoint2 --> ARecord2
+    ARecord1 --> AppEast
+    ARecord2 --> AppWest
 ```
 
 ## Key Test Scenario

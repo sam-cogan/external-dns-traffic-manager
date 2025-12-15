@@ -17,25 +17,19 @@ This webhook provider bridges that gap by:
 
 ## Architecture
 
-```
-┌─────────────────────────────────────────────────────────┐
-│         Kubernetes Service/Ingress                       │
-│         with Traffic Manager annotations                 │
-└────────────────────┬────────────────────────────────────┘
-                     │
-            ┌────────┴────────┐
-            ▼                 ▼
-   ┌─────────────────┐  ┌──────────────────┐
-   │  External DNS   │  │  TM Webhook      │
-   │  (Azure DNS)    │  │  Provider        │
-   └────────┬────────┘  └─────────┬────────┘
-            │                     │
-            ▼                     ▼
-   ┌─────────────────┐  ┌──────────────────┐
-   │   Azure DNS     │  │ Traffic Manager  │
-   │                 │  │                  │
-   │  A/CNAME        ├─►│ Weighted routing │
-   └─────────────────┘  └──────────────────┘
+```mermaid
+graph TB
+    Service["Kubernetes Service/Ingress<br/>with Traffic Manager annotations"]
+    ExternalDNS["External DNS<br/>(Azure DNS)"]
+    Webhook["TM Webhook<br/>Provider"]
+    AzureDNS["Azure DNS<br/>A/CNAME Records"]
+    TrafficManager["Traffic Manager<br/>Weighted routing"]
+    
+    Service --> ExternalDNS
+    Service --> Webhook
+    ExternalDNS --> AzureDNS
+    Webhook --> TrafficManager
+    AzureDNS -.CNAME.-> TrafficManager
 ```
 
 **How it works:**

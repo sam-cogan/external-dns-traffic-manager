@@ -21,31 +21,22 @@ This document provides detailed technical information about the External DNS Azu
 
 The webhook provider operates as a sidecar container alongside External DNS, communicating via HTTP endpoints:
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    Kubernetes Cluster                            │
-│                                                                  │
-│  ┌────────────────────────────────────────────────────────────┐ │
-│  │              External DNS Pod                               │ │
-│  │                                                              │ │
-│  │  ┌──────────────────┐         ┌────────────────────────┐  │ │
-│  │  │  External DNS    │  HTTP   │  TM Webhook Provider   │  │ │
-│  │  │  (Azure DNS)     │────────►│  (This Project)        │  │ │
-│  │  │  Container       │         │  Container             │  │ │
-│  │  └──────────────────┘         └────────────────────────┘  │ │
-│  │         │                              │                   │ │
-│  └─────────┼──────────────────────────────┼───────────────────┘ │
-│            │                              │                     │
-└────────────┼──────────────────────────────┼─────────────────────┘
-             │                              │
-             │ Azure DNS API                │ Traffic Manager API
-             ▼                              ▼
-    ┌────────────────┐            ┌────────────────────┐
-    │   Azure DNS    │            │ Traffic Manager    │
-    │                │            │                    │
-    │  A/CNAME       │───CNAME───►│ Profile/Endpoints  │
-    │  Records       │            │                    │
-    └────────────────┘            └────────────────────┘
+```mermaid
+graph TB
+    subgraph cluster["Kubernetes Cluster"]
+        subgraph pod["External DNS Pod"]
+            ExternalDNS["External DNS<br/>(Azure DNS)<br/>Container"]
+            Webhook["TM Webhook Provider<br/>(This Project)<br/>Container"]
+        end
+    end
+    
+    AzureDNS["Azure DNS<br/>A/CNAME Records"]
+    TrafficManager["Traffic Manager<br/>Profile/Endpoints"]
+    
+    ExternalDNS -->|HTTP| Webhook
+    ExternalDNS -->|Azure DNS API| AzureDNS
+    Webhook -->|Traffic Manager API| TrafficManager
+    AzureDNS -.CNAME.-> TrafficManager
 ```
 
 ### Component Interaction Flow
@@ -185,140 +176,45 @@ type EndpointState struct {
 
 ### Endpoint Creation Workflow
 
-```
-Service Created with Annotations
-           │
-           ▼
-External DNS detects change
-           │
-           ▼
-Call /adjustendpoints
-           │
-           ▼
-┌──────────────────────────┐
-│ Parse Annotations        │
-│ - Validate required      │
-│ - Set defaults           │
-│ - Filter enabled only    │
-└──────────┬───────────────┘
-           │
-           ▼
-┌──────────────────────────┐
-│ Enrich with metadata     │
-│ - Profile name           │
-│ - Endpoint name          │
-│ - Resource group         │
-└──────────┬───────────────┘
-           │
-           ▼
-Return adjusted endpoints to External DNS
-           │
-           ▼
-External DNS calculates changes
-           │
-           ▼
-Call POST /records with changes
-           │
-           ▼
-┌──────────────────────────┐
-│ Process CREATE action    │
-│                          │
-│ 1. Parse config          │
-│ 2. Get/Create Profile    │
-│ 3. Create Endpoint       │
-│ 4. Update state          │
-└──────────┬───────────────┘
-           │
-           ▼
-┌──────────────────────────┐
-│ Azure Traffic Manager    │
-│                          │
-│ Profile: myapp-profile   │
-│ └─ Endpoint: primary     │
-│    - Target: 20.x.x.x    │
-│    - Weight: 100         │
-│    - Location: eastus    │
-└──────────────────────────┘
+```mermaid
+flowchart TD
+    A[Service Created with Annotations] --> B[External DNS detects change]
+    B --> C[Call /adjustendpoints]
+    C --> D["Parse Annotations<br/>- Validate required<br/>- Set defaults<br/>- Filter enabled only"]
+    D --> E["Enrich with metadata<br/>- Profile name<br/>- Endpoint name<br/>- Resource group"]
+    E --> F[Return adjusted endpoints to External DNS]
+    F --> G[External DNS calculates changes]
+    G --> H[Call POST /records with changes]
+    H --> I["Process CREATE action<br/>1. Parse config<br/>2. Get/Create Profile<br/>3. Create Endpoint<br/>4. Update state"]
+    I --> J["Azure Traffic Manager<br/>Profile: myapp-profile<br/>└─ Endpoint: primary<br/>   - Target: 20.x.x.x<br/>   - Weight: 100<br/>   - Location: eastus"]
 ```
 
 ### Endpoint Update Workflow
 
-```
-Service annotation changed (weight: 100 → 50)
-           │
-           ▼
-External DNS detects change
-           │
-           ▼
-Call /records
-           │
-           ▼
-Parse state (GET /records)
-           │
-           ▼
-Call /adjustendpoints with new config
-           │
-           ▼
-Return to External DNS
-           │
-           ▼
-Calculate diff (UpdateOld vs UpdateNew)
-           │
-           ▼
-POST /records with UPDATE action
-           │
-           ▼
-┌──────────────────────────┐
-│ Process UPDATE action    │
-│                          │
-│ 1. Find existing endpoint│
-│ 2. Compare configs       │
-│ 3. Update in TM          │
-│ 4. Update state          │
-└──────────┬───────────────┘
-           │
-           ▼
-┌──────────────────────────┐
-│ Azure Traffic Manager    │
-│                          │
-│ Profile: myapp-profile   │
-│ └─ Endpoint: primary     │
-│    - Weight: 50 (changed)│
-└──────────────────────────┘
+```mermaid
+flowchart TD
+    A["Service annotation changed<br/>(weight: 100 → 50)"] --> B[External DNS detects change]
+    B --> C[Call /records]
+    C --> D["Parse state (GET /records)"]
+    D --> E[Call /adjustendpoints with new config]
+    E --> F[Return to External DNS]
+    F --> G["Calculate diff (UpdateOld vs UpdateNew)"]
+    G --> H[POST /records with UPDATE action]
+    H --> I["Process UPDATE action<br/>1. Find existing endpoint<br/>2. Compare configs<br/>3. Update in TM<br/>4. Update state"]
+    I --> J["Azure Traffic Manager<br/>Profile: myapp-profile<br/>└─ Endpoint: primary<br/>   - Weight: 50 (changed)"]
 ```
 
 ### Endpoint Deletion Workflow
 
-```
-Service deleted or annotation removed
-           │
-           ▼
-External DNS detects change
-           │
-           ▼
-Call POST /records with DELETE action
-           │
-           ▼
-┌──────────────────────────┐
-│ Process DELETE action    │
-│                          │
-│ 1. Find endpoint         │
-│ 2. Delete from TM        │
-│ 3. Remove from state     │
-│ 4. Check if last endpoint│
-└──────────┬───────────────┘
-           │
-           ▼
-    Last endpoint?
-       │        │
-      Yes       No
-       │        │
-       ▼        └─────► Done
-┌──────────────────────────┐
-│ Delete TM Profile        │
-│ - Clean up profile       │
-│ - Remove from state      │
-└──────────────────────────┘
+```mermaid
+flowchart TD
+    A[Service deleted or annotation removed] --> B[External DNS detects change]
+    B --> C[Call POST /records with DELETE action]
+    C --> D["Process DELETE action<br/>1. Find endpoint<br/>2. Delete from TM<br/>3. Remove from state<br/>4. Check if last endpoint"]
+    D --> E{Last endpoint?}
+    E -->|Yes| F["Delete TM Profile<br/>- Clean up profile<br/>- Remove from state"]
+    E -->|No| G[Done]
+    F --> G
 ```
 
 ---

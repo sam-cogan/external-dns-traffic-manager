@@ -66,7 +66,49 @@ graph TB
 
 ## Installation
 
-### 1. Set Up Azure Infrastructure
+### 1. Build and Push the Webhook Image
+
+Before deploying, you need to build the webhook container image and push it to a container registry accessible by your AKS cluster.
+
+**Option A: Using Azure Container Registry (ACR)**
+
+```bash
+# Create ACR if you don't have one
+ACR_NAME="yourregistry"  # Must be globally unique, lowercase alphanumeric
+az acr create --resource-group $AKS_RG --name $ACR_NAME --sku Basic
+
+# Build and push the image
+az acr build --registry $ACR_NAME --image external-dns-traffic-manager-webhook:latest .
+
+# Attach ACR to AKS cluster (if not already attached)
+az aks update --name $AKS_NAME --resource-group $AKS_RG --attach-acr $ACR_NAME
+```
+
+**Option B: Using Docker Hub or other registry**
+
+```bash
+# Build the image
+docker build -t yourusername/external-dns-traffic-manager-webhook:latest .
+
+# Push to Docker Hub (or your registry)
+docker push yourusername/external-dns-traffic-manager-webhook:latest
+```
+
+**Option C: Using the Makefile**
+
+```bash
+# Set your registry
+export DOCKER_REGISTRY="yourregistry.azurecr.io"
+export DOCKER_TAG="latest"
+
+# Build and push
+make docker-build
+make docker-push
+```
+
+> **Note:** After building and pushing the image, you'll need to update the image reference in your deployment manifests (step 3) to match your registry and image name.
+
+### 2. Set Up Azure Infrastructure
 
 Create resource groups and configure permissions:
 
@@ -121,7 +163,7 @@ az identity federated-credential create \
   --audience api://AzureADTokenExchange
 ```
 
-### 2. Deploy External DNS with Traffic Manager Webhook
+### 3. Deploy External DNS with Traffic Manager Webhook
 
 Apply the deployment manifests:
 
@@ -132,18 +174,21 @@ kubectl create namespace external-dns
 # Apply RBAC
 kubectl apply -f examples/deployment/rbac.yaml
 
-# Update and apply deployment
-# Edit examples/deployment/external-dns.yaml with your values:
+# Update examples/deployment/external-dns.yaml with your values:
+# - Container image: yourregistry.azurecr.io/external-dns-traffic-manager-webhook:latest
 # - AZURE_SUBSCRIPTION_ID
+# - AZURE_TENANT_ID
+# - AZURE_CLIENT_ID (Managed Identity)
 # - DNS zone resource group
 # - Traffic Manager resource group
 # - Domain filter
-# - Managed Identity Client ID
 
 kubectl apply -f examples/deployment/external-dns.yaml
 ```
 
-### 3. Verify Deployment
+> **Important:** Make sure to update the `image:` field in the deployment YAML to point to your container registry where you pushed the webhook image in step 1.
+
+### 4. Verify Deployment
 
 ```bash
 # Check pods are running

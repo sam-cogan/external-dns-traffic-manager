@@ -162,8 +162,8 @@ else
 fi
 
 # Grant DNS Zone Contributor role for Azure DNS integration
-DNS_ZONE_NAME="${DNS_ZONE_NAME:-lab-ms.samcogan.com}"
-DNS_ZONE_RESOURCE_GROUP="${DNS_ZONE_RESOURCE_GROUP:-core}"
+DNS_ZONE_NAME="${DNS_ZONE_NAME:-example.com}"
+DNS_ZONE_RESOURCE_GROUP="${DNS_ZONE_RESOURCE_GROUP:-your-dns-rg}"
 DNS_ZONE_SCOPE="/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$DNS_ZONE_RESOURCE_GROUP/providers/Microsoft.Network/dnszones/$DNS_ZONE_NAME"
 
 echo "Checking DNS Zone permissions..."

@@ -15,7 +15,7 @@ The multi-cluster deployment demonstrates:
 
 ```mermaid
 graph TB
-    subgraph DNS["Azure DNS Zone<br/>(lab-ms.samcogan.com)"]
+    subgraph DNS["Azure DNS Zone<br/>(example.com)"]
         ARecord1["A Record: multi-east → 40.xxx.xxx.xxx"]
         ARecord2["A Record: multi-west → 13.xxx.xxx.xxx"]
         CNAME["CNAME: multi → TM profile"]
@@ -90,7 +90,7 @@ chmod +x *.sh
 ./verify.sh
 
 # 6. Test DNS resolution
-nslookup multi.lab-ms.samcogan.com 8.8.8.8
+nslookup multi.example.com 8.8.8.8
 
 # 7. Cleanup when done
 ./cleanup.sh
@@ -162,26 +162,26 @@ kubectl --context aks-tm-west get svc
 
 # Check Traffic Manager
 az network traffic-manager profile show \
-  --name multi-lab-ms-samcogan-com-tm \
+  --name multi-example-com-tm \
   --resource-group externaldns-tm-profiles
 
 # Check endpoints
 az network traffic-manager endpoint list \
-  --profile-name multi-lab-ms-samcogan-com-tm \
+  --profile-name multi-example-com-tm \
   --resource-group externaldns-tm-profiles \
   --type ExternalEndpoints
 
 # Test DNS
-nslookup multi.lab-ms.samcogan.com 8.8.8.8
+nslookup multi.example.com 8.8.8.8
 
 # Test HTTP (after DNS propagation)
-curl http://multi.lab-ms.samcogan.com
+curl http://multi.example.com
 # Should return content from East cluster (Priority 1)
 
 # Test failover - scale down East cluster
 kubectl --context aks-tm-east scale deployment multi-demo --replicas=0
 # Wait 30 seconds for health check
-curl http://multi.lab-ms.samcogan.com
+curl http://multi.example.com
 # Should now return content from West cluster
 ```
 
@@ -192,19 +192,19 @@ curl http://multi.lab-ms.samcogan.com
 2. Creates Traffic Manager profile
 3. Adds East endpoint to profile
 4. Creates DNSEndpoint CRD for vanity CNAME
-5. Azure DNS creates A record for multi-east.lab-ms.samcogan.com
-6. Azure DNS creates CNAME for multi.lab-ms.samcogan.com
+5. Azure DNS creates A record for multi-east.example.com
+6. Azure DNS creates CNAME for multi.example.com
 
 ### Second Cluster (West)
 1. Webhook processes service annotation
 2. **Detects existing Traffic Manager profile** (from East)
 3. **Adds West endpoint to existing profile** (doesn't recreate)
 4. **Sees DNSEndpoint already exists** (doesn't duplicate)
-5. Azure DNS creates A record for multi-west.lab-ms.samcogan.com
+5. Azure DNS creates A record for multi-west.example.com
 6. CNAME remains pointing to same Traffic Manager profile
 
 ### Traffic Flow
-1. Client queries `multi.lab-ms.samcogan.com`
+1. Client queries `multi.example.com`
 2. DNS returns CNAME → Traffic Manager FQDN
 3. Traffic Manager evaluates:
    - East endpoint (Priority 1) - if healthy, return
@@ -232,7 +232,7 @@ Look for profile detection logic
 ### DNS Not Resolving
 **Symptom**: nslookup fails
 **Check**:
-- Azure DNS records: `az network dns record-set list --zone-name lab-ms.samcogan.com`
+- Azure DNS records: `az network dns record-set list --zone-name example.com`
 - DNSEndpoint created: `kubectl get dnsendpoints -A`
 - External DNS logs: `kubectl logs -n external-dns deployment/external-dns -c external-dns-azure`
 
@@ -265,8 +265,8 @@ Edit `config.env` to customize:
 | `CLUSTER_WEST_NAME` | Name of West cluster | aks-tm-west |
 | `CLUSTER_EAST_REGION` | East cluster location | eastus |
 | `CLUSTER_WEST_REGION` | West cluster location | westus |
-| `APP_HOSTNAME` | Vanity URL hostname | multi.lab-ms.samcogan.com |
-| `DNS_ZONE_NAME` | Azure DNS zone | lab-ms.samcogan.com |
+| `APP_HOSTNAME` | Vanity URL hostname | multi.example.com |
+| `DNS_ZONE_NAME` | Azure DNS zone | example.com |
 | `TM_PROFILE_RG` | TM resource group | externaldns-tm-profiles |
 
 ## Notes

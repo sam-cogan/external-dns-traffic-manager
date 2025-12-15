@@ -9,7 +9,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/samcogan/external-dns-traffic-manager/pkg/provider"
+	"github.com/sam-cogan/external-dns-traffic-manager/pkg/provider"
 	"go.uber.org/zap"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"

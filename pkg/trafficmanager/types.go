@@ -22,7 +22,7 @@ type ProfileConfig struct {
 type ProfileState struct {
 	ProfileName   string
 	ResourceGroup string
-	Hostname      string // DNS hostname that points to this profile (e.g., demo.lab-ms.samcogan.com)
+	Hostname      string // DNS hostname that points to this profile (e.g., demo.example.com)
 	FQDN          string // Traffic Manager FQDN (e.g., myapp-tm.trafficmanager.net)
 	RoutingMethod string
 	DNSTTL        int64

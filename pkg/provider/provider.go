@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/samcogan/external-dns-traffic-manager/pkg/annotations"
-	"github.com/samcogan/external-dns-traffic-manager/pkg/dnsendpoint"
-	"github.com/samcogan/external-dns-traffic-manager/pkg/state"
-	"github.com/samcogan/external-dns-traffic-manager/pkg/trafficmanager"
+	"github.com/sam-cogan/external-dns-traffic-manager/pkg/annotations"
+	"github.com/sam-cogan/external-dns-traffic-manager/pkg/dnsendpoint"
+	"github.com/sam-cogan/external-dns-traffic-manager/pkg/state"
+	"github.com/sam-cogan/external-dns-traffic-manager/pkg/trafficmanager"
 	"go.uber.org/zap"
 	"k8s.io/client-go/kubernetes"
 )
@@ -269,7 +269,7 @@ func (p *TrafficManagerProvider) createEndpoint(ctx context.Context, endpoint *E
 			zap.String("fqdn", existing.FQDN))
 	}
 
-	// Use endpoint DNS name as target (this is the individual service DNS like demo-east.lab-ms.samcogan.com)
+	// Use endpoint DNS name as target (this is the individual service DNS like demo-east.example.com)
 	// Traffic Manager will point to this DNS name instead of IP
 	targetDNS := endpoint.DNSName
 	

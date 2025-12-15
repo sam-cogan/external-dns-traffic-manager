@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/trafficmanager/armtrafficmanager"
-	"github.com/samcogan/external-dns-traffic-manager/pkg/state"
+	"github.com/sam-cogan/external-dns-traffic-manager/pkg/state"
 	"go.uber.org/zap"
 )
 

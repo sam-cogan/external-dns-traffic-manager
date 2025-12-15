@@ -1,4 +1,4 @@
-module github.com/samcogan/external-dns-traffic-manager
+module github.com/sam-cogan/external-dns-traffic-manager
 
 go 1.21
 

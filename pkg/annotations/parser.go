@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/samcogan/external-dns-traffic-manager/pkg/trafficmanager"
+	"github.com/sam-cogan/external-dns-traffic-manager/pkg/trafficmanager"
 )
 
 // TrafficManagerConfig holds parsed Traffic Manager configuration from annotations
@@ -14,7 +14,7 @@ type TrafficManagerConfig struct {
 	Enabled       bool
 	ProfileName   string
 	ResourceGroup string
-	Hostname      string // Vanity hostname for Traffic Manager (e.g., demo.lab-ms.samcogan.com)
+	Hostname      string // Vanity hostname for Traffic Manager (e.g., demo.example.com)
 
 	// Routing configuration
 	RoutingMethod string

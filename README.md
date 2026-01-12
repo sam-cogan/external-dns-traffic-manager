@@ -26,7 +26,7 @@ graph TB
     TrafficManager["Traffic Manager<br/>Weighted routing"]
     
     Service --> ExternalDNS
-    Service --> Webhook
+    ExternalDNS --> Webhook
     ExternalDNS --> AzureDNS
     Webhook --> TrafficManager
     AzureDNS -.CNAME.-> TrafficManager

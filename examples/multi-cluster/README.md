@@ -47,11 +47,21 @@ This setup demonstrates:
 
 ## Deployment Steps
 
-> [!IMPORTANT]  
-> Make sure to update the `image:` field in the deployment YAML to point to your container registry where you pushed the webhook image in step 1.
-> You may also want to update the --txt-owner-id field to match your deployment. This field is important and must be unique per cluster, as it is used to determine ownership of the DNS records
+### 1. Update Configuration
 
-### 1. Deploy to East US Cluster
+Update the configuration values in both `external-dns-east.yaml` and `external-dns-west.yaml`:
+
+- Replace `your-subscription-id`
+- Replace `your-registry.azurecr.io/external-dns-traffic-manager-webhook:latest` with your actual container registry
+- Replace `your-dns-rg`
+- Replace `your-tm-rg`
+- Replace `example.com` with your domain
+
+> [!IMPORTANT]  
+> Make sure to update the `image:` field in the deployment YAML to point to your container registry where you pushed the webhook image.
+> The `--txt-owner-id` values are already set differently for each cluster (`external-dns-azure-east` vs `external-dns-azure-west`). These must be unique per cluster to properly track DNS record ownership.
+
+### 2. Deploy to East US Cluster
 
 ```bash
 # Switch to East cluster
@@ -71,7 +81,7 @@ kubectl get pods -n external-dns
 kubectl get svc demo-app-east
 ```
 
-### 2. Deploy to West US Cluster
+### 3. Deploy to West US Cluster
 
 ```bash
 # Switch to West cluster
@@ -91,7 +101,7 @@ kubectl get pods -n external-dns
 kubectl get svc demo-app-west
 ```
 
-### 3. Verify Traffic Manager
+### 4. Verify Traffic Manager
 
 ```bash
 # Check Traffic Manager profile

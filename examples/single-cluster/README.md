@@ -31,33 +31,37 @@ This setup includes:
    - Replace `your-tm-rg`
    - Replace `example.com` with your domain
 
+   > [!IMPORTANT]  
+   > Make sure to update the `image:` field in the deployment YAML to point to your container registry where you pushed the webhook image.
+   > You may also want to update the `--txt-owner-id` field to match your deployment. This field is important and must be unique per cluster, as it is used to determine ownership of the DNS records.
+
 2. Deploy External DNS:
-```bash
-kubectl apply -f rbac.yaml
-kubectl apply -f external-dns.yaml
-```
+   ```bash
+   kubectl apply -f rbac.yaml
+   kubectl apply -f external-dns.yaml
+   ```
 
-1. Deploy the demo application:
-```bash
-kubectl apply -f demo-app.yaml
-```
+3. Deploy the demo application:
+   ```bash
+   kubectl apply -f demo-app.yaml
+   ```
 
-1. Verify deployment:
-```bash
-# Check pods
-kubectl get pods -n external-dns
+4. Verify deployment:
+   ```bash
+   # Check pods
+   kubectl get pods -n external-dns
 
-# Check logs
-kubectl logs -n external-dns deployment/external-dns -c traffic-manager-webhook
+   # Check logs
+   kubectl logs -n external-dns deployment/external-dns -c traffic-manager-webhook
 
-# Verify Service has external IP
-kubectl get svc demo-app
+   # Verify Service has external IP
+   kubectl get svc demo-app
 
-# Check Traffic Manager profile created
-az network traffic-manager profile list \
-  --resource-group your-tm-rg \
-  --output table
-```
+   # Check Traffic Manager profile created
+   az network traffic-manager profile list \
+     --resource-group your-tm-rg \
+     --output table
+   ```
 
 ## How It Works
 

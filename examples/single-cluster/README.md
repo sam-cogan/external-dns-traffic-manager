@@ -26,10 +26,10 @@ This setup includes:
 
 1. Update the configuration values in `external-dns.yaml`:
    - Replace `your-subscription-id`
+   - Replace `your-registry.azurecr.io/external-dns-traffic-manager-webhook:latest` with your actual container registry
    - Replace `your-dns-rg`
    - Replace `your-tm-rg`
    - Replace `example.com` with your domain
-   - Replace container image registry
 
 2. Deploy External DNS:
 ```bash
@@ -37,12 +37,12 @@ kubectl apply -f rbac.yaml
 kubectl apply -f external-dns.yaml
 ```
 
-3. Deploy the demo application:
+1. Deploy the demo application:
 ```bash
 kubectl apply -f demo-app.yaml
 ```
 
-4. Verify deployment:
+1. Verify deployment:
 ```bash
 # Check pods
 kubectl get pods -n external-dns

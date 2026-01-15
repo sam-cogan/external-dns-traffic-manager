@@ -165,39 +165,22 @@ az identity federated-credential create \
 
 ### 3. Deploy External DNS with Traffic Manager Webhook
 
-Apply the deployment manifests:
+Choose the deployment example that matches your use case:
 
-```bash
-# Create namespace
-kubectl create namespace external-dns
+- **[Single Cluster Example](examples/single-cluster/)** - Deploy External DNS with Traffic Manager webhook in a single AKS cluster. Best for simple setups or testing the webhook functionality.
 
-# Apply RBAC
-kubectl apply -f examples/deployment/rbac.yaml
+- **[Multi-Cluster Example](examples/multi-cluster/)** - Deploy across multiple AKS clusters in different regions with a shared Traffic Manager profile. Ideal for multi-region deployments with weighted traffic distribution and failover.
 
-# Update examples/deployment/external-dns.yaml with your values:
-# - Container image: yourregistry.azurecr.io/external-dns-traffic-manager-webhook:latest
-# - AZURE_SUBSCRIPTION_ID
-# - AZURE_TENANT_ID
-# - AZURE_CLIENT_ID (Managed Identity)
-# - DNS zone resource group
-# - Traffic Manager resource group
-# - Domain filter
+Each example includes:
+- Complete deployment manifests
+- Step-by-step deployment instructions
+- Demo applications with Traffic Manager annotations
+- Verification steps
 
-kubectl apply -f examples/deployment/external-dns.yaml
-```
+> [!IMPORTANT]  
+> Make sure to update the `image:` field in the deployment YAML to point to your container registry where you pushed the webhook image in step 1.
+> You may also want to update the --txt-owner-id field to match your deployment. This field is important and must be unique per cluster, as it is used to determine ownership of the DNS records
 
-> **Important:** Make sure to update the `image:` field in the deployment YAML to point to your container registry where you pushed the webhook image in step 1.
-
-### 4. Verify Deployment
-
-```bash
-# Check pods are running
-kubectl get pods -n external-dns
-
-# Check logs
-kubectl logs -n external-dns deployment/external-dns -c external-dns-azure
-kubectl logs -n external-dns deployment/external-dns -c traffic-manager-webhook
-```
 
 ## Usage
 

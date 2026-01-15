@@ -47,6 +47,10 @@ This setup demonstrates:
 
 ## Deployment Steps
 
+> [!IMPORTANT]  
+> Make sure to update the `image:` field in the deployment YAML to point to your container registry where you pushed the webhook image in step 1.
+> You may also want to update the --txt-owner-id field to match your deployment. This field is important and must be unique per cluster, as it is used to determine ownership of the DNS records
+
 ### 1. Deploy to East US Cluster
 
 ```bash

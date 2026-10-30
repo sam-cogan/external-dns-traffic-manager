@@ -1,0 +1,48 @@
+version: 2
+updates:
+  - package-ecosystem: gomod
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      kubernetes:
+        patterns:
+          - k8s.io/*
+      azure-sdk:
+        patterns:
+          - github.com/Azure/azure-sdk-for-go/*
+      go-minor-and-patch:
+        exclude-patterns:
+          - k8s.io/*
+          - github.com/Azure/azure-sdk-for-go/*
+        update-types:
+          - minor
+          - patch
+  - package-ecosystem: gomod
+    directory: /tests/contract
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      externaldns-contract:
+        patterns:
+          - sigs.k8s.io/external-dns
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    ignore:
+      - dependency-name: "*"
+        update-types:
+          - version-update:semver-major

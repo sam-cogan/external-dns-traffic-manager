@@ -320,8 +320,7 @@ func TestProfileState_Clone(t *testing.T) {
 
 	// Verify it's a deep clone
 	assert.NotSame(t, original, cloned)
-	assert.NotSame(t, original.Endpoints, cloned.Endpoints)
-	assert.NotSame(t, original.Tags, cloned.Tags)
+	assert.NotSame(t, original.Endpoints["ep1"], cloned.Endpoints["ep1"])
 
 	// Modify clone shouldn't affect original
 	cloned.ProfileName = "modified"

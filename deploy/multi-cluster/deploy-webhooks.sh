@@ -3,7 +3,11 @@ set -e
 
 # Load configuration
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "${SCRIPT_DIR}/config.env"
+if [[ "${1:-}" == "--render" ]]; then
+    source "${SCRIPT_DIR}/../render.sh"
+else
+    source "${SCRIPT_DIR}/config.env"
+fi
 
 echo "=========================================="
 echo "Deploying External DNS Webhook to Clusters"
@@ -81,7 +85,7 @@ spec:
       containers:
       # Azure DNS Provider - manages A records for individual endpoints
       - name: external-dns-azure
-        image: registry.k8s.io/external-dns/external-dns:v0.20.0
+        image: registry.k8s.io/external-dns/external-dns:v0.24.0
         args:
         - --source=service
         - --source=crd
@@ -109,7 +113,7 @@ spec:
       
       # External DNS Webhook - calls Traffic Manager webhook
       - name: external-dns-webhook
-        image: registry.k8s.io/external-dns/external-dns:v0.20.0
+        image: registry.k8s.io/external-dns/external-dns:v0.24.0
         args:
         - --source=service
         - --source=crd

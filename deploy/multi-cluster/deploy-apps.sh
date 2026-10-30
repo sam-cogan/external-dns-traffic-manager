@@ -3,7 +3,11 @@ set -e
 
 # Load configuration
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "${SCRIPT_DIR}/config.env"
+if [[ "${1:-}" == "--render" ]]; then
+    source "${SCRIPT_DIR}/../render.sh"
+else
+    source "${SCRIPT_DIR}/config.env"
+fi
 
 echo "=========================================="
 echo "Deploying Demo Applications"
@@ -119,21 +123,21 @@ metadata:
   namespace: default
   annotations:
     # DNS name for this specific endpoint (Azure DNS creates A record)
-    external-dns.alpha.kubernetes.io/hostname: ${APP_HOSTNAME_REGION}
+    external-dns.kubernetes.io/hostname: ${APP_HOSTNAME_REGION}
     
     # Traffic Manager configuration for vanity URL
-    external-dns.alpha.kubernetes.io/webhook-traffic-manager-enabled: "true"
-    external-dns.alpha.kubernetes.io/webhook-traffic-manager-hostname: "${APP_HOSTNAME}"
-    external-dns.alpha.kubernetes.io/webhook-traffic-manager-resource-group: "${TM_PROFILE_RG}"
-    external-dns.alpha.kubernetes.io/webhook-traffic-manager-routing-method: "Weighted"
-    external-dns.alpha.kubernetes.io/webhook-traffic-manager-weight: "100"
-    external-dns.alpha.kubernetes.io/webhook-traffic-manager-priority: "${PRIORITY}"
-    external-dns.alpha.kubernetes.io/webhook-traffic-manager-endpoint-name: "${APP_NAME}-${REGION}"
-    external-dns.alpha.kubernetes.io/webhook-traffic-manager-endpoint-location: "${REGION_NAME}"
-    external-dns.alpha.kubernetes.io/webhook-traffic-manager-health-checks-enabled: "true"
-    external-dns.alpha.kubernetes.io/webhook-traffic-manager-monitor-protocol: "HTTP"
-    external-dns.alpha.kubernetes.io/webhook-traffic-manager-monitor-port: "80"
-    external-dns.alpha.kubernetes.io/webhook-traffic-manager-monitor-path: "/"
+    external-dns.kubernetes.io/webhook-traffic-manager-enabled: "true"
+    external-dns.kubernetes.io/webhook-traffic-manager-hostname: "${APP_HOSTNAME}"
+    external-dns.kubernetes.io/webhook-traffic-manager-resource-group: "${TM_PROFILE_RG}"
+    external-dns.kubernetes.io/webhook-traffic-manager-routing-method: "Weighted"
+    external-dns.kubernetes.io/webhook-traffic-manager-weight: "100"
+    external-dns.kubernetes.io/webhook-traffic-manager-priority: "${PRIORITY}"
+    external-dns.kubernetes.io/webhook-traffic-manager-endpoint-name: "${APP_NAME}-${REGION}"
+    external-dns.kubernetes.io/webhook-traffic-manager-endpoint-location: "${REGION_NAME}"
+    external-dns.kubernetes.io/webhook-traffic-manager-health-checks-enabled: "true"
+    external-dns.kubernetes.io/webhook-traffic-manager-monitor-protocol: "HTTP"
+    external-dns.kubernetes.io/webhook-traffic-manager-monitor-port: "80"
+    external-dns.kubernetes.io/webhook-traffic-manager-monitor-path: "/"
 spec:
   type: LoadBalancer
   selector:
@@ -152,6 +156,10 @@ EOF
 # Deploy to both clusters
 deploy_app "${CLUSTER_EAST_NAME}" "aks-tm-east" "east" "East US" "${APP_EAST_HOSTNAME}" "1"
 deploy_app "${CLUSTER_WEST_NAME}" "aks-tm-west" "west" "West US" "${APP_WEST_HOSTNAME}" "2"
+
+if [[ "${1:-}" == "--render" ]]; then
+    exit 0
+fi
 
 echo "=========================================="
 echo "✓ Application Deployment Complete"

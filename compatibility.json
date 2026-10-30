@@ -1,0 +1,31 @@
+{
+  "go": "1.27.3",
+  "externalDNS": ["v0.23.0", "v0.24.0"],
+  "defaultExternalDNS": "v0.24.0",
+  "webhookProtocol": "1",
+  "clientGo": "v0.37.1",
+  "azure": {
+    "azcore": "v1.23.3",
+    "azidentity": "v1.15.0",
+    "armtrafficmanager": "v1.3.0"
+  },
+  "dnsEndpoint": "externaldns.k8s.io/v1alpha1",
+  "docker": {
+    "builder": "golang:1.27.3-alpine3.23@sha256:8a5046497cda39860b832ffdbe8dd66018a0f05bb01352f533a36e7e2ced66a0",
+    "runtime": "alpine:3.23.4@sha256:5b10f432ef3da1b8d4c7eb6c487f2f5a8f096bc91145e68878dd4a5019afde11"
+  },
+  "kubernetes": [
+    {"version": "1.35.8", "kubectl": "v1.35.8", "image": "kindest/node:v1.35.8@sha256:07b2536e30b803ed61d1677a79df6115f798ce64c80f9e22f6ed45afd09323c0"},
+    {"version": "1.36.4", "kubectl": "v1.36.4", "image": "kindest/node:v1.36.4@sha256:099e049362a1526b2db71494e1947aae99bd16290d7c895f2b7ea312e3cbfaed"},
+    {"version": "1.37.0", "kubectl": "v1.37.0", "image": "kindest/node:v1.37.0@sha256:a1ed56cfb0e7b93589bdf97c8cd566405a265939e3620fc4f5de89adff580ae5"}
+  ],
+  "tools": {
+    "golangciLint": "v2.15.0",
+    "govulncheck": "v1.9.0",
+    "gosec": "v2.30.0",
+    "goLicenses": "v2.0.1",
+    "kubeconform": "v0.8.0",
+    "kind": "v0.33.0",
+    "trivy": "v0.76.1"
+  }
+}

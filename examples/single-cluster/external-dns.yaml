@@ -26,7 +26,7 @@ spec:
       # External DNS - Azure DNS Provider
       # Creates A and CNAME records in Azure DNS
       - name: external-dns-azure
-        image: registry.k8s.io/external-dns/external-dns:v0.14.0
+        image: registry.k8s.io/external-dns/external-dns:v0.24.0
         args:
           - --source=service
           - --source=ingress
@@ -44,7 +44,7 @@ spec:
       # External DNS - Webhook Provider
       # Routes Traffic Manager requests to the webhook
       - name: external-dns-webhook
-        image: registry.k8s.io/external-dns/external-dns:v0.14.0
+        image: registry.k8s.io/external-dns/external-dns:v0.24.0
         args:
           - --source=service
           - --source=ingress

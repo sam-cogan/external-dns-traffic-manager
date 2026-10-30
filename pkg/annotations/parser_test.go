@@ -19,7 +19,7 @@ func TestParseConfig_Disabled(t *testing.T) {
 
 func TestParseConfig_MinimalValid(t *testing.T) {
 	labels := map[string]string{
-		AnnotationEnabled:      "true",
+		AnnotationEnabled:       "true",
 		AnnotationResourceGroup: "my-rg",
 	}
 
@@ -53,19 +53,19 @@ func TestParseConfig_MissingResourceGroup(t *testing.T) {
 
 func TestParseConfig_AllFields(t *testing.T) {
 	labels := map[string]string{
-		AnnotationEnabled:         "true",
-		AnnotationResourceGroup:   "prod-rg",
-		AnnotationProfileName:     "custom-profile",
-		AnnotationRoutingMethod:   "Priority",
-		AnnotationWeight:          "150",
-		AnnotationPriority:        "5",
-		AnnotationEndpointName:    "east-endpoint",
+		AnnotationEnabled:          "true",
+		AnnotationResourceGroup:    "prod-rg",
+		AnnotationProfileName:      "custom-profile",
+		AnnotationRoutingMethod:    "Priority",
+		AnnotationWeight:           "150",
+		AnnotationPriority:         "5",
+		AnnotationEndpointName:     "east-endpoint",
 		AnnotationEndpointLocation: "East US",
-		AnnotationEndpointStatus:  "Disabled",
-		AnnotationDNSTTL:          "60",
-		AnnotationMonitorProtocol: "TCP",
-		AnnotationMonitorPort:     "8080",
-		AnnotationMonitorPath:     "/health",
+		AnnotationEndpointStatus:   "Disabled",
+		AnnotationDNSTTL:           "60",
+		AnnotationMonitorProtocol:  "TCP",
+		AnnotationMonitorPort:      "8080",
+		AnnotationMonitorPath:      "/health",
 	}
 
 	config, err := ParseConfig(labels)
@@ -87,9 +87,9 @@ func TestParseConfig_AllFields(t *testing.T) {
 
 func TestParseConfig_InvalidWeight(t *testing.T) {
 	labels := map[string]string{
-		AnnotationEnabled:      "true",
+		AnnotationEnabled:       "true",
 		AnnotationResourceGroup: "my-rg",
-		AnnotationWeight:       "not-a-number",
+		AnnotationWeight:        "not-a-number",
 	}
 
 	config, err := ParseConfig(labels)
@@ -100,9 +100,9 @@ func TestParseConfig_InvalidWeight(t *testing.T) {
 
 func TestParseConfig_InvalidPriority(t *testing.T) {
 	labels := map[string]string{
-		AnnotationEnabled:      "true",
+		AnnotationEnabled:       "true",
 		AnnotationResourceGroup: "my-rg",
-		AnnotationPriority:     "invalid",
+		AnnotationPriority:      "invalid",
 	}
 
 	config, err := ParseConfig(labels)
@@ -113,9 +113,9 @@ func TestParseConfig_InvalidPriority(t *testing.T) {
 
 func TestParseConfig_InvalidTTL(t *testing.T) {
 	labels := map[string]string{
-		AnnotationEnabled:      "true",
+		AnnotationEnabled:       "true",
 		AnnotationResourceGroup: "my-rg",
-		AnnotationDNSTTL:       "abc",
+		AnnotationDNSTTL:        "abc",
 	}
 
 	config, err := ParseConfig(labels)
@@ -126,9 +126,9 @@ func TestParseConfig_InvalidTTL(t *testing.T) {
 
 func TestParseConfig_InvalidMonitorPort(t *testing.T) {
 	labels := map[string]string{
-		AnnotationEnabled:      "true",
+		AnnotationEnabled:       "true",
 		AnnotationResourceGroup: "my-rg",
-		AnnotationMonitorPort:  "not-a-port",
+		AnnotationMonitorPort:   "not-a-port",
 	}
 
 	config, err := ParseConfig(labels)
@@ -187,7 +187,7 @@ func TestToEndpointConfig(t *testing.T) {
 
 func TestAnnotationConstants(t *testing.T) {
 	// Verify annotation prefix
-	assert.Equal(t, "external-dns.alpha.kubernetes.io/webhook-", AnnotationPrefix)
+	assert.Equal(t, "webhook/traffic-manager-", AnnotationPrefix)
 
 	// Verify all annotations have correct prefix
 	annotations := []string{
@@ -240,7 +240,7 @@ func TestParseConfig_CaseInsensitiveEnabled(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			labels := map[string]string{
-				AnnotationEnabled:      tc.value,
+				AnnotationEnabled:       tc.value,
 				AnnotationResourceGroup: "test-rg",
 			}
 
@@ -261,9 +261,9 @@ func TestParseConfig_EmptyLabels(t *testing.T) {
 
 func TestParseConfig_OnlyPartialFields(t *testing.T) {
 	labels := map[string]string{
-		AnnotationEnabled:      "true",
+		AnnotationEnabled:       "true",
 		AnnotationResourceGroup: "my-rg",
-		AnnotationWeight:       "250",
+		AnnotationWeight:        "250",
 		// Other fields use defaults
 	}
 

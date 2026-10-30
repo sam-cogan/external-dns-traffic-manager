@@ -110,7 +110,7 @@ sed -e "s|YOUR_SUBSCRIPTION_ID|$SUBSCRIPTION_ID|g" \
     -e "s|externaldns-tm-profiles|$TM_RG|g" \
     -e "s|your-registry.azurecr.io/external-dns-traffic-manager-webhook:latest|$FULL_IMAGE|g" \
     -e "s|example.com|${DOMAIN_FILTER:-example.com}|g" \
-    "$DEPLOY_DIR/kubernetes/external-dns.yaml" > "$TEMP_MANIFEST"
+    "$DEPLOY_DIR/../examples/single-cluster/external-dns.yaml" > "$TEMP_MANIFEST"
 
 # Apply the manifest
 kubectl apply -f "$TEMP_MANIFEST"

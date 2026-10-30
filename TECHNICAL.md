@@ -227,7 +227,7 @@ The webhook implements version 1 of the External DNS webhook protocol.
 
 #### 1. Negotiate (GET /)
 
-**Purpose**: Version negotiation and capability exchange
+**Purpose**: Negotiate the versioned media type and return the domain filter directly.
 
 **Request Headers**:
 ```
@@ -237,10 +237,12 @@ Accept: application/external.dns.webhook+json;version=1
 **Response**:
 ```json
 {
-  "version": "1",
-  "domainFilter": []
+  "include": ["example.com"]
 }
 ```
+
+The response uses `Content-Type: application/external.dns.webhook+json;version=1`.
+It is not wrapped in a `domainFilter` object. An unrestricted filter is `{}`.
 
 #### 2. Get Records (GET /records)
 
@@ -299,9 +301,9 @@ func (p *TrafficManagerProvider) Records(ctx context.Context) ([]*endpoint.Endpo
     "targets": ["20.30.40.50"],
     "recordType": "A",
     "labels": {
-      "external-dns.alpha.kubernetes.io/webhook-traffic-manager-enabled": "true",
-      "external-dns.alpha.kubernetes.io/webhook-traffic-manager-resource-group": "my-rg",
-      "external-dns.alpha.kubernetes.io/webhook-traffic-manager-weight": "100"
+      "external-dns.kubernetes.io/webhook-traffic-manager-enabled": "true",
+      "external-dns.kubernetes.io/webhook-traffic-manager-resource-group": "my-rg",
+      "external-dns.kubernetes.io/webhook-traffic-manager-weight": "100"
     }
   }
 ]
@@ -315,9 +317,9 @@ func (p *TrafficManagerProvider) Records(ctx context.Context) ([]*endpoint.Endpo
     "targets": ["20.30.40.50"],
     "recordType": "A",
     "labels": {
-      "external-dns.alpha.kubernetes.io/webhook-traffic-manager-enabled": "true",
-      "external-dns.alpha.kubernetes.io/webhook-traffic-manager-resource-group": "my-rg",
-      "external-dns.alpha.kubernetes.io/webhook-traffic-manager-weight": "100"
+      "external-dns.kubernetes.io/webhook-traffic-manager-enabled": "true",
+      "external-dns.kubernetes.io/webhook-traffic-manager-resource-group": "my-rg",
+      "external-dns.kubernetes.io/webhook-traffic-manager-weight": "100"
     },
     "providerSpecific": [
       {
@@ -473,7 +475,7 @@ type Endpoint struct {
 
 ```go
 const (
-    AnnotationPrefix          = "external-dns.alpha.kubernetes.io/webhook-traffic-manager-"
+    AnnotationPrefix          = "webhook/traffic-manager-"
     AnnotationEnabled         = AnnotationPrefix + "enabled"
     AnnotationResourceGroup   = AnnotationPrefix + "resource-group"
     AnnotationProfileName     = AnnotationPrefix + "profile-name"
@@ -654,6 +656,25 @@ func (m *Manager) DeleteProfile(hostname string) {
 
 ## Testing Strategy
 
+### Credential-free risk checks
+
+Run `make test-risk-coverage` to execute race-enabled tests and enforce
+`coverage-policy.json` using `cmd/coverage-check`. The policy protects named
+reconciliation, configuration, ownership-filter, and deletion functions
+individually; the repository average is reported but does not determine success.
+A missing function, malformed report, or below-threshold result fails the check.
+Outputs are `coverage.out` and `coverage-functions.txt`.
+
+The local tests cover the production HTTP handlers, provider-specific property
+transport for create/update/delete, TXT-record no-ops, malformed update batches,
+and deletion-error propagation. Azure SDK fake-transport tests exercise throttling,
+transient failures, permanent failures, and retry exhaustion without credentials.
+Retry behavior remains SDK-managed; this is not a custom retry-policy guarantee.
+
+These are local regression checks, not a declaration of tested compatibility with
+live AKS environments. The version-specific ExternalDNS client matrix is exercised
+by hosted CI; branch-protection enforcement is managed separately from these checks.
+
 ### Unit Tests
 
 ```go
@@ -703,14 +724,10 @@ func TestParseConfig(t *testing.T) {
 
 ### Integration Tests
 
-Integration tests validate end-to-end workflows against a test Azure subscription.
-
-```bash
-# Run integration tests
-export AZURE_SUBSCRIPTION_ID="..."
-export AZURE_RESOURCE_GROUP="test-rg"
-go test -tags=integration ./pkg/trafficmanager/...
-```
+Live Azure/AKS lifecycle tests are not currently implemented. A test Azure
+subscription and isolated resources will be needed for that separate qualification
+work; adding an `integration` build tag to the existing unit-test command does not
+perform live validation.
 
 ---
 

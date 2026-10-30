@@ -10,6 +10,8 @@
 
 # Output of the go coverage tool
 *.out
+/coverage-functions.txt
+/.ci/
 
 # Dependency directories
 vendor/

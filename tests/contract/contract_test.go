@@ -73,7 +73,7 @@ func TestRealExternalDNSClient(t *testing.T) {
 		t.Fatalf("empty GET records: %v, %v", records, err)
 	}
 	properties, _ := annotations.ProviderSpecificAnnotations(map[string]string{
-		annotations.WebhookPrefix + "traffic-manager-enabled": "true",
+		annotations.WebhookPrefix + "traffic-manager-enabled":        "true",
 		annotations.WebhookPrefix + "traffic-manager-resource-group": "test-rg",
 	})
 	e := endpoint.NewEndpointWithTTL("east.example.com", "A", 300, "192.0.2.1")

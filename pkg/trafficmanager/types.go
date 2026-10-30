@@ -6,16 +6,16 @@ import (
 
 // ProfileConfig holds configuration for creating a Traffic Manager profile
 type ProfileConfig struct {
-	ProfileName     string
-	ResourceGroup   string
-	Location        string            // Always "global" for Traffic Manager
-	RoutingMethod   string            // Weighted, Priority, Performance, Geographic
-	DNSTTL          int64             // DNS TTL in seconds
-	MonitorProtocol      string            // HTTP, HTTPS, TCP
-	MonitorPort          int64             // Port to monitor
-	MonitorPath          string            // Path for HTTP/HTTPS monitoring
-	HealthChecksEnabled  bool              // Enable or disable endpoint health checks
-	Tags                 map[string]string // Azure resource tags
+	ProfileName         string
+	ResourceGroup       string
+	Location            string            // Always "global" for Traffic Manager
+	RoutingMethod       string            // Weighted, Priority, Performance, Geographic
+	DNSTTL              int64             // DNS TTL in seconds
+	MonitorProtocol     string            // HTTP, HTTPS, TCP
+	MonitorPort         int64             // Port to monitor
+	MonitorPath         string            // Path for HTTP/HTTPS monitoring
+	HealthChecksEnabled bool              // Enable or disable endpoint health checks
+	Tags                map[string]string // Azure resource tags
 }
 
 // ProfileState represents the current state of a Traffic Manager profile
@@ -58,14 +58,14 @@ type EndpointState struct {
 // DefaultProfileConfig returns a ProfileConfig with sensible defaults
 func DefaultProfileConfig() *ProfileConfig {
 	return &ProfileConfig{
-		Location:        "global",
-		RoutingMethod:   "Weighted",
-		DNSTTL:          30,
-		MonitorProtocol:      "HTTPS",
-		MonitorPort:          443,
-		MonitorPath:          "/",
-		HealthChecksEnabled:  true,
-		Tags:                 make(map[string]string),
+		Location:            "global",
+		RoutingMethod:       "Weighted",
+		DNSTTL:              30,
+		MonitorProtocol:     "HTTPS",
+		MonitorPort:         443,
+		MonitorPath:         "/",
+		HealthChecksEnabled: true,
+		Tags:                make(map[string]string),
 	}
 }
 

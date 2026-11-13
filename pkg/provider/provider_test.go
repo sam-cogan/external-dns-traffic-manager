@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"testing"
 	"time"
@@ -23,6 +24,8 @@ type fakeTM struct {
 
 	updatedProfile      *trafficmanager.ProfileConfig
 	updatedEndpoint     *trafficmanager.EndpointConfig
+	createdEndpoint     *trafficmanager.EndpointConfig
+	createdProfile      *trafficmanager.ProfileConfig
 	deletedProfileNames []string
 	deletedEndpoints    []string
 }
@@ -37,7 +40,8 @@ func (f *fakeTM) call(name string) error {
 func (f *fakeTM) SyncProfilesFromAzure(context.Context, []string) ([]*state.ProfileState, error) {
 	return f.profiles, f.call("sync")
 }
-func (f *fakeTM) CreateProfile(context.Context, *trafficmanager.ProfileConfig) (*trafficmanager.ProfileState, error) {
+func (f *fakeTM) CreateProfile(_ context.Context, config *trafficmanager.ProfileConfig) (*trafficmanager.ProfileState, error) {
+	f.createdProfile = config
 	return &trafficmanager.ProfileState{}, f.call("create-profile")
 }
 func (f *fakeTM) GetProfile(context.Context, string, string) (*trafficmanager.ProfileState, error) {
@@ -52,6 +56,7 @@ func (f *fakeTM) DeleteProfile(_ context.Context, _, profileName string) error {
 	return f.call("delete-profile")
 }
 func (f *fakeTM) CreateEndpoint(_ context.Context, _, _ string, cfg *trafficmanager.EndpointConfig) (*trafficmanager.EndpointState, error) {
+	f.createdEndpoint = cfg
 	return &trafficmanager.EndpointState{EndpointName: cfg.EndpointName}, f.call("create-endpoint")
 }
 func (f *fakeTM) UpdateEndpoint(_ context.Context, _, _ string, cfg *trafficmanager.EndpointConfig) (*trafficmanager.EndpointState, error) {
@@ -74,15 +79,25 @@ func (f *fakeTM) GetProfileState(context.Context, string, string) (*state.Profil
 }
 
 type fakeDNS struct {
-	err     error
-	deleted []string
+	err       error
+	createErr error
+	deleteErr error
+	created   []string
+	deleted   []string
 }
 
-func (f *fakeDNS) CreateOrUpdateCNAME(context.Context, string, string, string, int64) error {
+func (f *fakeDNS) CreateOrUpdateCNAME(_ context.Context, name, _, _ string, _ int64) error {
+	f.created = append(f.created, name)
+	if f.createErr != nil {
+		return f.createErr
+	}
 	return f.err
 }
 func (f *fakeDNS) Delete(_ context.Context, name string) error {
 	f.deleted = append(f.deleted, name)
+	if f.deleteErr != nil {
+		return f.deleteErr
+	}
 	return f.err
 }
 
@@ -270,6 +285,12 @@ func TestARecordWithMultipleTargetsUsesSingleNormalizedEndpoint(t *testing.T) {
 	newEndpoint.ProviderSpecific = append(newEndpoint.ProviderSpecific,
 		ProviderSpecificProperty{Name: annotations.AnnotationWeight, Value: "200"})
 
+	if err := p.createEndpoint(context.Background(), oldEndpoint); err != nil {
+		t.Fatal(err)
+	}
+	if tm.createdEndpoint == nil || tm.createdEndpoint.EndpointName != "192-0-2-1" {
+		t.Fatalf("created endpoint = %+v, want the unsuffixed normalized endpoint", tm.createdEndpoint)
+	}
 	if err := p.updateEndpoint(context.Background(), oldEndpoint, newEndpoint); err != nil {
 		t.Fatal(err)
 	}
@@ -280,21 +301,113 @@ func TestARecordWithMultipleTargetsUsesSingleNormalizedEndpoint(t *testing.T) {
 		t.Fatalf("A-record update target = %q, want DNS name %q", tm.updatedEndpoint.Target, newEndpoint.DNSName)
 	}
 
-	tm.calls = nil
 	if err := p.deleteEndpoint(context.Background(), newEndpoint); err != nil {
 		t.Fatal(err)
 	}
-	deleteCalls := 0
-	for _, call := range tm.calls {
-		if call == "delete-endpoint" {
-			deleteCalls++
-		}
-	}
-	if deleteCalls != 1 {
-		t.Fatalf("delete-endpoint calls = %d, want 1 (calls: %v)", deleteCalls, tm.calls)
-	}
 	if len(tm.deletedEndpoints) != 1 || tm.deletedEndpoints[0] != "192-0-2-1" {
 		t.Fatalf("deleted endpoint names = %v, want [192-0-2-1]", tm.deletedEndpoints)
+	}
+}
+
+func TestVanityHostnameMigration(t *testing.T) {
+	for _, explicit := range []bool{false, true} {
+		t.Run(fmt.Sprintf("explicit=%t", explicit), func(t *testing.T) {
+			p, tm, dns := testProvider()
+			oldEndpoint, newEndpoint := configuredEndpoint(), configuredEndpoint()
+			newEndpoint.ProviderSpecific = append(newEndpoint.ProviderSpecific,
+				ProviderSpecificProperty{Name: annotations.AnnotationHostname, Value: "new.example.com"})
+			if explicit {
+				property := ProviderSpecificProperty{Name: annotations.AnnotationProfileName, Value: "shared-profile"}
+				oldEndpoint.ProviderSpecific = append(oldEndpoint.ProviderSpecific, property)
+				newEndpoint.ProviderSpecific = append(newEndpoint.ProviderSpecific, property)
+			}
+			p.stateManager.SetProfile("app.example.com", tm.profile)
+			dns.deleteErr = errors.New("delete failed")
+			if err := p.updateEndpoint(context.Background(), oldEndpoint, newEndpoint); err == nil {
+				t.Fatal("expected old vanity cleanup failure")
+			}
+			dns.deleteErr = nil
+			if err := p.updateEndpoint(context.Background(), oldEndpoint, newEndpoint); err != nil {
+				t.Fatalf("migration retry failed: %v", err)
+			}
+			if len(dns.created) == 0 || dns.created[len(dns.created)-1] != "new-example-com-tm-cname" {
+				t.Fatalf("new vanity not reconciled: %v", dns.created)
+			}
+			if len(dns.deleted) != 2 || dns.deleted[1] != "app-example-com-tm-cname" {
+				t.Fatalf("old vanity not retried: %v", dns.deleted)
+			}
+			if _, ok := p.stateManager.GetProfile("app.example.com"); ok {
+				t.Fatal("old state remains")
+			}
+			if _, ok := p.stateManager.GetProfile("new.example.com"); !ok {
+				t.Fatal("new state missing")
+			}
+			if explicit {
+				if tm.updatedProfile == nil || tm.updatedProfile.ProfileName != "shared-profile" ||
+					tm.updatedProfile.Tags["hostname"] != "new.example.com" {
+					t.Fatalf("incorrect in-place profile update: %+v", tm.updatedProfile)
+				}
+			} else if tm.createdProfile == nil || tm.createdProfile.ProfileName != "new-example-com-tm" {
+				t.Fatalf("replacement profile not created: %+v", tm.createdProfile)
+			}
+		})
+	}
+}
+
+func TestVanityMigrationDoesNotRemoveOldRecordWhenNewRecordFails(t *testing.T) {
+	for _, explicit := range []bool{false, true} {
+		p, _, dns := testProvider()
+		oldEndpoint, newEndpoint := configuredEndpoint(), configuredEndpoint()
+		newEndpoint.ProviderSpecific = append(newEndpoint.ProviderSpecific,
+			ProviderSpecificProperty{Name: annotations.AnnotationHostname, Value: "new.example.com"})
+		if explicit {
+			property := ProviderSpecificProperty{Name: annotations.AnnotationProfileName, Value: "shared-profile"}
+			oldEndpoint.ProviderSpecific = append(oldEndpoint.ProviderSpecific, property)
+			newEndpoint.ProviderSpecific = append(newEndpoint.ProviderSpecific, property)
+		}
+		dns.createErr = errors.New("create failed")
+		if err := p.updateEndpoint(context.Background(), oldEndpoint, newEndpoint); err == nil {
+			t.Fatal("expected new vanity creation failure")
+		}
+		if len(dns.deleted) != 0 {
+			t.Fatalf("deleted old vanity on failure: %v", dns.deleted)
+		}
+	}
+}
+
+func TestVanityMigrationPreservesOldSharedProfile(t *testing.T) {
+	p, tm, dns := testProvider()
+	tm.profile.Endpoints["west"] = &state.EndpointState{EndpointName: "west"}
+	oldEndpoint, newEndpoint := configuredEndpoint(), configuredEndpoint()
+	newEndpoint.ProviderSpecific = append(newEndpoint.ProviderSpecific,
+		ProviderSpecificProperty{Name: annotations.AnnotationHostname, Value: "new.example.com"})
+	if err := p.updateEndpoint(context.Background(), oldEndpoint, newEndpoint); err != nil {
+		t.Fatal(err)
+	}
+	if len(dns.deleted) != 0 {
+		t.Fatalf("removed old vanity record while profile still has endpoints: %v", dns.deleted)
+	}
+	for _, call := range tm.calls {
+		if call == "delete-profile" {
+			t.Fatal("deleted shared old profile")
+		}
+	}
+	if _, ok := p.stateManager.GetProfile("app.example.com"); !ok {
+		t.Fatal("old shared profile missing from state")
+	}
+}
+
+func TestVanityMigrationRequiresReplacementFQDN(t *testing.T) {
+	p, tm, dns := testProvider()
+	tm.profile.FQDN = ""
+	oldEndpoint, newEndpoint := configuredEndpoint(), configuredEndpoint()
+	newEndpoint.ProviderSpecific = append(newEndpoint.ProviderSpecific,
+		ProviderSpecificProperty{Name: annotations.AnnotationHostname, Value: "new.example.com"})
+	if err := p.updateEndpoint(context.Background(), oldEndpoint, newEndpoint); err == nil {
+		t.Fatal("expected missing FQDN error")
+	}
+	if len(dns.deleted) != 0 || len(tm.deletedEndpoints) != 0 {
+		t.Fatal("cleaned up old resources without a replacement FQDN")
 	}
 }
 

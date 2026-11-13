@@ -161,9 +161,14 @@ else
     echo "Skipping image push. Make sure the image is available in your cluster."
 fi
 
-# Update ConfigMap with actual values
 echo ""
 echo "Step 2: Deploying Kubernetes resources..."
+
+kubectl apply -f "$SCRIPT_DIR/../examples/single-cluster/rbac.yaml"
+kubectl annotate serviceaccount external-dns -n external-dns \
+    "azure.workload.identity/client-id=$CLIENT_ID" --overwrite
+kubectl apply -f "$SCRIPT_DIR/kubernetes/dnsendpoint-crd.yaml"
+kubectl wait --for=condition=Established --timeout=60s crd/dnsendpoints.externaldns.k8s.io
 
 # Create temporary file with substituted values
 TEMP_MANIFEST=$(mktemp)

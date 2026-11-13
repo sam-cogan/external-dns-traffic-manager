@@ -41,6 +41,10 @@ This setup includes:
 2. Deploy External DNS:
    ```bash
    kubectl apply -f rbac.yaml
+   kubectl annotate serviceaccount external-dns -n external-dns \
+     azure.workload.identity/client-id=<your-client-id> --overwrite
+   kubectl apply -f ../../deploy/kubernetes/dnsendpoint-crd.yaml
+   kubectl wait --for=condition=Established --timeout=60s crd/dnsendpoints.externaldns.k8s.io
    kubectl apply -f external-dns.yaml
    ```
 

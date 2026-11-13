@@ -105,6 +105,7 @@ jobs:
           python3 scripts/check-compatibility.py
           bash -n deploy/render.sh deploy/multi-cluster/deploy-webhooks.sh deploy/multi-cluster/deploy-apps.sh
           bash scripts/render-manifests.sh
+          bash scripts/test-deploy.sh
       - name: Start exact Kubernetes minor
         run: |
           go install sigs.k8s.io/kind@v0.33.0

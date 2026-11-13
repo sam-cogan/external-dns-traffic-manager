@@ -135,29 +135,29 @@ func main() {
 
 // Config holds the application configuration
 type Config struct {
-	WebhookPort      string
-	HealthPort       string
-	DomainFilter     []string
-	ResourceGroups   []string
-	SubscriptionID   string
-	TenantID         string
-	ClientID         string
-	ClientSecret     string
-	LogLevel         string
+	WebhookPort    string
+	HealthPort     string
+	DomainFilter   []string
+	ResourceGroups []string
+	SubscriptionID string
+	TenantID       string
+	ClientID       string
+	ClientSecret   string
+	LogLevel       string
 }
 
 // getConfig loads configuration from environment variables
 func getConfig() *Config {
 	return &Config{
-		WebhookPort:      getEnv("WEBHOOK_PORT", "8888"),
-		HealthPort:       getEnv("HEALTH_PORT", "8080"),
-		DomainFilter:     getEnvSlice("DOMAIN_FILTER", []string{}),
-		ResourceGroups:   getEnvSlice("RESOURCE_GROUPS", []string{}),
-		SubscriptionID:   getEnv("AZURE_SUBSCRIPTION_ID", ""),
-		TenantID:         getEnv("AZURE_TENANT_ID", ""),
-		ClientID:         getEnv("AZURE_CLIENT_ID", ""),
-		ClientSecret:     getEnv("AZURE_CLIENT_SECRET", ""),
-		LogLevel:         getEnv("LOG_LEVEL", "info"),
+		WebhookPort:    getEnv("WEBHOOK_PORT", "8888"),
+		HealthPort:     getEnv("HEALTH_PORT", "8080"),
+		DomainFilter:   getEnvSlice("DOMAIN_FILTER", []string{}),
+		ResourceGroups: getEnvSlice("RESOURCE_GROUPS", []string{}),
+		SubscriptionID: getEnv("AZURE_SUBSCRIPTION_ID", ""),
+		TenantID:       getEnv("AZURE_TENANT_ID", ""),
+		ClientID:       getEnv("AZURE_CLIENT_ID", ""),
+		ClientSecret:   getEnv("AZURE_CLIENT_SECRET", ""),
+		LogLevel:       getEnv("LOG_LEVEL", "info"),
 	}
 }
 

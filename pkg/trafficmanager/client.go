@@ -2,12 +2,20 @@ package trafficmanager
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net/http"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/trafficmanager/armtrafficmanager"
 	"go.uber.org/zap"
 )
+
+// IsNotFound reports whether an Azure operation failed because the resource is absent.
+func IsNotFound(err error) bool {
+	var responseError *azcore.ResponseError
+	return errors.As(err, &responseError) && responseError.StatusCode == http.StatusNotFound
+}
 
 // Client wraps the Azure Traffic Manager SDK clients
 type Client struct {

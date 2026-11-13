@@ -91,22 +91,22 @@ metadata:
   namespace: default
   annotations:
     # Standard External DNS annotation
-    external-dns.alpha.kubernetes.io/hostname: demo.example.com  # UPDATE: Your hostname
+    external-dns.kubernetes.io/hostname: demo.example.com  # UPDATE: Your hostname
     
     # Enable Traffic Manager
-    external-dns.alpha.kubernetes.io/webhook-traffic-manager-enabled: "true"
+    external-dns.kubernetes.io/webhook-traffic-manager-enabled: "true"
     
     # Traffic Manager Configuration
-    external-dns.alpha.kubernetes.io/webhook-traffic-manager-resource-group: "your-tm-rg"  # UPDATE: Your TM resource group
-    external-dns.alpha.kubernetes.io/webhook-traffic-manager-profile-name: "demo-profile"
-    external-dns.alpha.kubernetes.io/webhook-traffic-manager-endpoint-name: "primary"
-    external-dns.alpha.kubernetes.io/webhook-traffic-manager-endpoint-location: "eastus"  # UPDATE: Your region
-    external-dns.alpha.kubernetes.io/webhook-traffic-manager-weight: "100"
+    external-dns.kubernetes.io/webhook-traffic-manager-resource-group: "your-tm-rg"  # UPDATE: Your TM resource group
+    external-dns.kubernetes.io/webhook-traffic-manager-profile-name: "demo-profile"
+    external-dns.kubernetes.io/webhook-traffic-manager-endpoint-name: "primary"
+    external-dns.kubernetes.io/webhook-traffic-manager-endpoint-location: "eastus"  # UPDATE: Your region
+    external-dns.kubernetes.io/webhook-traffic-manager-weight: "100"
     
     # Health Check Configuration
-    external-dns.alpha.kubernetes.io/webhook-traffic-manager-monitor-protocol: "HTTP"
-    external-dns.alpha.kubernetes.io/webhook-traffic-manager-monitor-port: "80"
-    external-dns.alpha.kubernetes.io/webhook-traffic-manager-monitor-path: "/"
+    external-dns.kubernetes.io/webhook-traffic-manager-monitor-protocol: "HTTP"
+    external-dns.kubernetes.io/webhook-traffic-manager-monitor-port: "80"
+    external-dns.kubernetes.io/webhook-traffic-manager-monitor-path: "/"
 spec:
   type: LoadBalancer
   ports:

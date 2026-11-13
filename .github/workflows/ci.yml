@@ -1,0 +1,191 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Quality, tests, and risk coverage
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Check formatting and module files
+        run: |
+          mapfile -t gofiles < <(git ls-files '*.go')
+          test -z "$(gofmt -l "${gofiles[@]}")"
+          go mod tidy -diff
+      - name: Vet
+        run: go vet ./...
+      - name: Lint
+        run: |
+          go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.15.0
+          "$(go env GOPATH)/bin/golangci-lint" run --config .golangci.yml ./...
+      - name: Run race tests and risk coverage gates
+        run: make test-risk-coverage
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        if: always()
+        with:
+          name: risk-coverage
+          path: |
+            coverage.out
+            coverage-functions.txt
+          if-no-files-found: warn
+          retention-days: 14
+
+  externaldns-contract:
+    name: ExternalDNS ${{ matrix.version }} protocol contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - version: v0.23.0
+            modfile: v0.23.0.mod
+          - version: v0.24.0
+            modfile: go.mod
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version-file: go.mod
+          cache: true
+          cache-dependency-path: |
+            go.sum
+            tests/contract/go.sum
+            tests/contract/v0.23.0.sum
+      - name: Verify the exact client lockfile and test the protocol
+        working-directory: tests/contract
+        run: |
+          go mod tidy -diff -modfile=${{ matrix.modfile }}
+          go test -mod=readonly -modfile=${{ matrix.modfile }} -race -count=1 ./...
+
+  manifests:
+    name: Kubernetes ${{ matrix.version }} manifest and API validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - version: "1.35"
+            kubectl: v1.35.8
+            image: kindest/node:v1.35.8@sha256:07b2536e30b803ed61d1677a79df6115f798ce64c80f9e22f6ed45afd09323c0
+          - version: "1.36"
+            kubectl: v1.36.4
+            image: kindest/node:v1.36.4@sha256:099e049362a1526b2db71494e1947aae99bd16290d7c895f2b7ea312e3cbfaed
+          - version: "1.37"
+            kubectl: v1.37.0
+            image: kindest/node:v1.37.0@sha256:a1ed56cfb0e7b93589bdf97c8cd566405a265939e3620fc4f5de89adff580ae5
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      - uses: Azure/setup-kubectl@c0c8b32d33a5244f1e5947304550403b63930415 # v5.2.0
+        with:
+          version: ${{ matrix.kubectl }}
+      - name: Verify checked-in and rendered manifests
+        run: |
+          python3 scripts/check-compatibility.py
+          bash -n deploy/render.sh deploy/multi-cluster/deploy-webhooks.sh deploy/multi-cluster/deploy-apps.sh
+          bash scripts/render-manifests.sh
+          bash scripts/test-deploy.sh
+      - name: Start exact Kubernetes minor
+        run: |
+          go install sigs.k8s.io/kind@v0.33.0
+          "$(go env GOPATH)/bin/kind" create cluster --name compatibility --image "${{ matrix.image }}" --wait 120s
+      - name: Validate CRD and all resources against the Kubernetes API
+        run: |
+          kubectl apply -f deploy/kubernetes/dnsendpoint-crd.yaml
+          kubectl wait --for=condition=Established --timeout=60s crd/dnsendpoints.externaldns.k8s.io
+          kubectl create namespace external-dns --dry-run=client -o yaml | kubectl apply -f -
+          kubectl apply --dry-run=server --validate=strict -f deploy/kubernetes
+          kubectl apply --dry-run=server --validate=strict -f examples/single-cluster
+          kubectl apply --dry-run=server --validate=strict -f examples/multi-cluster
+          kubectl apply --dry-run=server --validate=strict -f .ci/rendered
+
+  security-and-license:
+    name: Dependency, source, and license policy
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Scan dependencies for known vulnerabilities
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@v1.9.0
+          "$(go env GOPATH)/bin/govulncheck" ./...
+      - name: Scan source for security issues
+        run: |
+          go install github.com/securego/gosec/v2/cmd/gosec@v2.30.0
+          "$(go env GOPATH)/bin/gosec" -quiet ./...
+      - name: Enforce dependency license allowlist
+        run: |
+          go install github.com/google/go-licenses/v2@v2.0.1
+          "$(go env GOPATH)/bin/go-licenses" check \
+            --allowed_licenses=MIT,Apache-2.0,BSD-3-Clause,BSD-2-Clause,ISC,Unicode-3.0,CC0-1.0,OpenSSL ./...
+
+  container:
+    name: Container build and image scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - name: Validate and build container without pushing
+        run: |
+          docker build --check .
+          docker build --pull --tag external-dns-traffic-manager-webhook:ci .
+      - name: Scan the built image
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # 0.35.0
+        with:
+          version: v0.76.1
+          image-ref: external-dns-traffic-manager-webhook:ci
+          scanners: vuln,secret
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+
+  ci-required:
+    name: CI required
+    if: always()
+    needs:
+      - quality
+      - externaldns-contract
+      - manifests
+      - security-and-license
+      - container
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every gate to pass
+        env:
+          QUALITY: ${{ needs.quality.result }}
+          CONTRACT: ${{ needs.externaldns-contract.result }}
+          MANIFESTS: ${{ needs.manifests.result }}
+          SECURITY: ${{ needs.security-and-license.result }}
+          CONTAINER: ${{ needs.container.result }}
+        run: |
+          printf 'quality=%s contract=%s manifests=%s security=%s container=%s\n' \
+            "$QUALITY" "$CONTRACT" "$MANIFESTS" "$SECURITY" "$CONTAINER"
+          test "$QUALITY" = success
+          test "$CONTRACT" = success
+          test "$MANIFESTS" = success
+          test "$SECURITY" = success
+          test "$CONTAINER" = success

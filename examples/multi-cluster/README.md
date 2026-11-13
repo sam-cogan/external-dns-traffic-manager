@@ -136,10 +136,10 @@ To change traffic weights, update the annotations:
 **90% to East, 10% to West:**
 ```yaml
 # In demo-app-east.yaml
-external-dns.alpha.kubernetes.io/webhook-traffic-manager-weight: "90"
+external-dns.kubernetes.io/webhook-traffic-manager-weight: "90"
 
 # In demo-app-west.yaml
-external-dns.alpha.kubernetes.io/webhook-traffic-manager-weight: "10"
+external-dns.kubernetes.io/webhook-traffic-manager-weight: "10"
 ```
 
 Apply the changes:
@@ -220,12 +220,12 @@ Instead of weighted distribution, use priority routing:
 
 ```yaml
 # Primary (East)
-external-dns.alpha.kubernetes.io/webhook-traffic-manager-routing-method: "Priority"
-external-dns.alpha.kubernetes.io/webhook-traffic-manager-priority: "1"
+external-dns.kubernetes.io/webhook-traffic-manager-routing-method: "Priority"
+external-dns.kubernetes.io/webhook-traffic-manager-priority: "1"
 
 # Secondary (West)
-external-dns.alpha.kubernetes.io/webhook-traffic-manager-routing-method: "Priority"
-external-dns.alpha.kubernetes.io/webhook-traffic-manager-priority: "2"
+external-dns.kubernetes.io/webhook-traffic-manager-routing-method: "Priority"
+external-dns.kubernetes.io/webhook-traffic-manager-priority: "2"
 ```
 
 ### Performance-Based Routing
@@ -233,7 +233,7 @@ external-dns.alpha.kubernetes.io/webhook-traffic-manager-priority: "2"
 Route users to the closest region:
 
 ```yaml
-external-dns.alpha.kubernetes.io/webhook-traffic-manager-routing-method: "Performance"
+external-dns.kubernetes.io/webhook-traffic-manager-routing-method: "Performance"
 ```
 
 ## Troubleshooting

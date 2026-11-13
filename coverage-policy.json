@@ -1,0 +1,18 @@
+[
+  {"file":"pkg/annotations/parser.go","function":"ParseConfig","minimum":80,"risk":"configuration"},
+  {"file":"pkg/provider/provider.go","function":"endpointAnnotations","minimum":100,"risk":"configuration"},
+  {"file":"pkg/provider/provider.go","function":"validateChanges","minimum":100,"risk":"reconciliation"},
+  {"file":"pkg/provider/provider.go","function":"ApplyChanges","minimum":90,"risk":"reconciliation"},
+  {"file":"pkg/provider/provider.go","function":"Records","minimum":80,"risk":"reconciliation"},
+  {"file":"pkg/provider/provider.go","function":"createEndpoint","minimum":80,"risk":"reconciliation"},
+  {"file":"pkg/provider/provider.go","function":"updateEndpoint","minimum":80,"risk":"reconciliation"},
+  {"file":"pkg/provider/provider.go","function":"deleteEndpointForMigration","minimum":90,"risk":"deletion"},
+  {"file":"pkg/provider/filter.go","function":"matchesDomainFilter","minimum":90,"risk":"ownership"},
+  {"file":"pkg/provider/filter.go","function":"matchesDomain","minimum":90,"risk":"ownership"},
+  {"file":"pkg/state/manager.go","function":"DeleteProfile","minimum":90,"risk":"deletion"},
+  {"file":"pkg/state/manager.go","function":"DeleteEndpoint","minimum":90,"risk":"deletion"},
+  {"file":"pkg/trafficmanager/sync.go","function":"isManagedByUs","minimum":100,"risk":"ownership"},
+  {"file":"pkg/trafficmanager/endpoint.go","function":"DeleteEndpoint","minimum":90,"risk":"deletion"},
+  {"file":"pkg/trafficmanager/profile.go","function":"DeleteProfile","minimum":90,"risk":"deletion"},
+  {"file":"pkg/trafficmanager/client.go","function":"IsNotFound","minimum":100,"risk":"error-classification"}
+]

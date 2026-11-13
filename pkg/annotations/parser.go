@@ -31,10 +31,10 @@ type TrafficManagerConfig struct {
 	DNSTTL int64
 
 	// Monitoring configuration
-	MonitorProtocol      string
-	MonitorPort          int64
-	MonitorPath          string
-	HealthChecksEnabled  bool
+	MonitorProtocol     string
+	MonitorPort         int64
+	MonitorPath         string
+	HealthChecksEnabled bool
 }
 
 // ParseConfig parses Traffic Manager configuration from annotation labels
@@ -158,7 +158,7 @@ func ParseConfig(labels map[string]string) (*TrafficManagerConfig, error) {
 // ToProfileConfig converts TrafficManagerConfig to trafficmanager.ProfileConfig
 func (c *TrafficManagerConfig) ToProfileConfig() *trafficmanager.ProfileConfig {
 	config := trafficmanager.DefaultProfileConfig()
-	
+
 	if c.ProfileName != "" {
 		config.ProfileName = c.ProfileName
 	}
@@ -169,20 +169,20 @@ func (c *TrafficManagerConfig) ToProfileConfig() *trafficmanager.ProfileConfig {
 	config.MonitorPort = c.MonitorPort
 	config.MonitorPath = c.MonitorPath
 	config.HealthChecksEnabled = c.HealthChecksEnabled
-	
+
 	// Add managed-by tag
 	if config.Tags == nil {
 		config.Tags = make(map[string]string)
 	}
 	config.Tags["managedBy"] = "external-dns-traffic-manager-webhook"
-	
+
 	return config
 }
 
 // ToEndpointConfig converts TrafficManagerConfig to trafficmanager.EndpointConfig
 func (c *TrafficManagerConfig) ToEndpointConfig(target string) *trafficmanager.EndpointConfig {
 	config := trafficmanager.DefaultEndpointConfig()
-	
+
 	if c.EndpointName != "" {
 		config.EndpointName = c.EndpointName
 	}
@@ -192,6 +192,6 @@ func (c *TrafficManagerConfig) ToEndpointConfig(target string) *trafficmanager.E
 	config.Priority = c.Priority
 	config.Status = c.EndpointStatus
 	config.Location = c.EndpointLocation
-	
+
 	return config
 }

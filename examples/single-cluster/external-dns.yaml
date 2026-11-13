@@ -3,6 +3,15 @@ kind: Namespace
 metadata:
   name: external-dns
 ---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: external-dns-azure-config
+  namespace: external-dns
+data:
+  azure.json: |
+    {"useWorkloadIdentityExtension": true}
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -26,31 +35,39 @@ spec:
       # External DNS - Azure DNS Provider
       # Creates A and CNAME records in Azure DNS
       - name: external-dns-azure
-        image: registry.k8s.io/external-dns/external-dns:v0.14.0
+        image: registry.k8s.io/external-dns/external-dns:v0.24.0
         args:
           - --source=service
           - --source=ingress
+          - --source=crd
           - --provider=azure
-          - --azure-resource-group=your-dns-rg  # UPDATE: Your DNS zone resource group
-          - --azure-subscription-id=your-subscription-id  # UPDATE: Your subscription ID
-          - --domain-filter=example.com  # UPDATE: Your domain
+          - --azure-config-file=/etc/external-dns/azure.json
+          - --azure-resource-group=__DNS_ZONE_RESOURCE_GROUP__
+          - --azure-subscription-id=__AZURE_SUBSCRIPTION_ID__
+          - --domain-filter=__DOMAIN_FILTER__
           - --txt-owner-id=external-dns-azure
           - --interval=1m
           - --log-level=info
         env:
           - name: AZURE_CLIENT_ID
-            value: "your-managed-identity-client-id"  # UPDATE: Your managed identity client ID
+            value: "__AZURE_CLIENT_ID__"
+          - name: AZURE_TENANT_ID
+            value: "__AZURE_TENANT_ID__"
+        volumeMounts:
+          - name: azure-config
+            mountPath: /etc/external-dns
+            readOnly: true
 
       # External DNS - Webhook Provider
       # Routes Traffic Manager requests to the webhook
       - name: external-dns-webhook
-        image: registry.k8s.io/external-dns/external-dns:v0.14.0
+        image: registry.k8s.io/external-dns/external-dns:v0.24.0
         args:
           - --source=service
           - --source=ingress
           - --provider=webhook
           - --webhook-provider-url=http://localhost:8888
-          - --domain-filter=example.com  # UPDATE: Your domain
+          - --domain-filter=__DOMAIN_FILTER__
           - --txt-owner-id=external-dns-webhook
           - --interval=1m
           - --log-level=info
@@ -58,7 +75,7 @@ spec:
       # Traffic Manager Webhook Provider
       # Manages Azure Traffic Manager profiles and endpoints
       - name: traffic-manager-webhook
-        image: your-registry.azurecr.io/external-dns-traffic-manager-webhook:latest  # UPDATE: Your container registry
+        image: __CONTAINER_IMAGE__
         imagePullPolicy: Always
         ports:
         - containerPort: 8888
@@ -73,11 +90,15 @@ spec:
           - name: LOG_LEVEL
             value: "info"
           - name: AZURE_SUBSCRIPTION_ID
-            value: "your-subscription-id"  # UPDATE: Your subscription ID
+            value: "__AZURE_SUBSCRIPTION_ID__"
           - name: AZURE_TENANT_ID
-            value: "your-tenant-id"  # UPDATE: Your tenant ID
+            value: "__AZURE_TENANT_ID__"
           - name: AZURE_CLIENT_ID
-            value: "your-managed-identity-client-id"  # UPDATE: Your managed identity client ID
+            value: "__AZURE_CLIENT_ID__"
+          - name: RESOURCE_GROUPS
+            value: "__TM_RESOURCE_GROUP__"
+          - name: DOMAIN_FILTER
+            value: "__DOMAIN_FILTER__"
         livenessProbe:
           httpGet:
             path: /healthz
@@ -90,3 +111,7 @@ spec:
             port: 8888
           initialDelaySeconds: 5
           periodSeconds: 5
+      volumes:
+        - name: azure-config
+          configMap:
+            name: external-dns-azure-config

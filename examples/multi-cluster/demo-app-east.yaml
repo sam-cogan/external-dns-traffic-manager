@@ -106,24 +106,24 @@ metadata:
   namespace: default
   annotations:
     # DNS hostname - same for both regions
-    external-dns.alpha.kubernetes.io/hostname: multi-demo.example.com  # UPDATE: Your hostname
+    external-dns.kubernetes.io/hostname: multi-demo.example.com  # UPDATE: Your hostname
     
     # Enable Traffic Manager
-    external-dns.alpha.kubernetes.io/webhook-traffic-manager-enabled: "true"
+    external-dns.kubernetes.io/webhook-traffic-manager-enabled: "true"
     
     # Traffic Manager Configuration - SHARED PROFILE
-    external-dns.alpha.kubernetes.io/webhook-traffic-manager-resource-group: "your-tm-rg"  # UPDATE
-    external-dns.alpha.kubernetes.io/webhook-traffic-manager-profile-name: "multi-demo-profile"  # Same for both
+    external-dns.kubernetes.io/webhook-traffic-manager-resource-group: "your-tm-rg"  # UPDATE
+    external-dns.kubernetes.io/webhook-traffic-manager-profile-name: "multi-demo-profile"  # Same for both
     
     # Endpoint Configuration - UNIQUE PER REGION
-    external-dns.alpha.kubernetes.io/webhook-traffic-manager-endpoint-name: "demo-east"
-    external-dns.alpha.kubernetes.io/webhook-traffic-manager-endpoint-location: "eastus"
-    external-dns.alpha.kubernetes.io/webhook-traffic-manager-weight: "50"  # 50% traffic
+    external-dns.kubernetes.io/webhook-traffic-manager-endpoint-name: "demo-east"
+    external-dns.kubernetes.io/webhook-traffic-manager-endpoint-location: "eastus"
+    external-dns.kubernetes.io/webhook-traffic-manager-weight: "50"  # 50% traffic
     
     # Health Check Configuration
-    external-dns.alpha.kubernetes.io/webhook-traffic-manager-monitor-protocol: "HTTP"
-    external-dns.alpha.kubernetes.io/webhook-traffic-manager-monitor-port: "80"
-    external-dns.alpha.kubernetes.io/webhook-traffic-manager-monitor-path: "/"
+    external-dns.kubernetes.io/webhook-traffic-manager-monitor-protocol: "HTTP"
+    external-dns.kubernetes.io/webhook-traffic-manager-monitor-port: "80"
+    external-dns.kubernetes.io/webhook-traffic-manager-monitor-path: "/"
 spec:
   type: LoadBalancer
   ports:

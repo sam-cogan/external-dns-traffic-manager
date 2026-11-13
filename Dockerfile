@@ -1,5 +1,5 @@
 # Build stage
-FROM golang:1.21-alpine AS builder
+FROM golang:1.27.4-alpine3.23@sha256:146e3b9c7c1e2ec3d3f5348c8a686151a75e1976e50efac9fc022ebe446a9a82 AS builder
 
 # Install build dependencies
 RUN apk add --no-cache git ca-certificates
@@ -20,10 +20,10 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
     ./cmd/webhook
 
 # Final stage
-FROM alpine:latest
+FROM alpine:3.23.4@sha256:5b10f432ef3da1b8d4c7eb6c487f2f5a8f096bc91145e68878dd4a5019afde11
 
 # Install ca-certificates for HTTPS
-RUN apk --no-cache add ca-certificates
+RUN apk upgrade --no-cache && apk add --no-cache ca-certificates
 
 WORKDIR /app
 

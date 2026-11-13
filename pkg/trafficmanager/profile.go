@@ -132,6 +132,9 @@ func (c *Client) DeleteProfile(ctx context.Context, resourceGroup, profileName s
 
 	_, err := c.profilesClient.Delete(ctx, resourceGroup, profileName, nil)
 	if err != nil {
+		if IsNotFound(err) {
+			return nil
+		}
 		return fmt.Errorf("failed to delete profile: %w", err)
 	}
 

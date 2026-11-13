@@ -17,7 +17,7 @@ GOMOD=$(GOCMD) mod
 # Build directory
 BUILD_DIR=bin
 
-.PHONY: all build clean test run docker-build docker-push deploy help
+.PHONY: all build clean test test-risk-coverage run docker-build docker-push deploy help
 
 all: test build
 
@@ -37,6 +37,12 @@ clean:
 test:
 	@echo "Running tests..."
 	$(GOTEST) -v ./...
+
+## test-risk-coverage: Run race tests and enforce function-level risk thresholds
+test-risk-coverage:
+	$(GOTEST) -race -covermode=atomic -coverprofile=coverage.out ./...
+	$(GOCMD) tool cover -func=coverage.out > coverage-functions.txt
+	$(GOCMD) run ./cmd/coverage-check
 
 ## test-coverage: Run tests with coverage
 test-coverage:

@@ -2,6 +2,10 @@
 
 > ⚠️ **PROOF OF CONCEPT** - This project is a proof of concept and should not be used in production environments without thorough testing and security review.
 
+See the [supported compatibility policy](docs/compatibility.md) for tested
+ExternalDNS, Kubernetes, Go, and Azure SDK versions, and [CI guidance](docs/ci.md)
+for local checks and deployment manifest validation.
+
 A webhook provider for [External DNS](https://github.com/kubernetes-sigs/external-dns) that enables Azure Traffic Manager integration, providing weighted DNS routing and health-based failover for Kubernetes workloads in Azure.
 
 ## Overview
@@ -192,22 +196,22 @@ metadata:
   namespace: default
   annotations:
     # Standard External DNS annotation for DNS record
-    external-dns.alpha.kubernetes.io/hostname: myapp.example.com
+    external-dns.kubernetes.io/hostname: myapp.example.com
     
     # Enable Traffic Manager webhook
-    external-dns.alpha.kubernetes.io/webhook-traffic-manager-enabled: "true"
+    external-dns.kubernetes.io/webhook-traffic-manager-enabled: "true"
     
     # Traffic Manager configuration
-    external-dns.alpha.kubernetes.io/webhook-traffic-manager-resource-group: "my-tm-rg"
-    external-dns.alpha.kubernetes.io/webhook-traffic-manager-profile-name: "myapp-profile"
-    external-dns.alpha.kubernetes.io/webhook-traffic-manager-weight: "100"
-    external-dns.alpha.kubernetes.io/webhook-traffic-manager-endpoint-name: "primary"
-    external-dns.alpha.kubernetes.io/webhook-traffic-manager-endpoint-location: "eastus"
+    external-dns.kubernetes.io/webhook-traffic-manager-resource-group: "my-tm-rg"
+    external-dns.kubernetes.io/webhook-traffic-manager-profile-name: "myapp-profile"
+    external-dns.kubernetes.io/webhook-traffic-manager-weight: "100"
+    external-dns.kubernetes.io/webhook-traffic-manager-endpoint-name: "primary"
+    external-dns.kubernetes.io/webhook-traffic-manager-endpoint-location: "eastus"
     
     # Health check configuration (optional)
-    external-dns.alpha.kubernetes.io/webhook-traffic-manager-monitor-path: "/health"
-    external-dns.alpha.kubernetes.io/webhook-traffic-manager-monitor-port: "443"
-    external-dns.alpha.kubernetes.io/webhook-traffic-manager-monitor-protocol: "HTTPS"
+    external-dns.kubernetes.io/webhook-traffic-manager-monitor-path: "/health"
+    external-dns.kubernetes.io/webhook-traffic-manager-monitor-port: "443"
+    external-dns.kubernetes.io/webhook-traffic-manager-monitor-protocol: "HTTPS"
 spec:
   type: LoadBalancer
   ports:
@@ -222,18 +226,24 @@ spec:
 
 | Annotation | Required | Default | Description |
 |------------|----------|---------|-------------|
-| `external-dns.alpha.kubernetes.io/webhook-traffic-manager-enabled` | Yes | - | Set to "true" to enable Traffic Manager management |
-| `external-dns.alpha.kubernetes.io/webhook-traffic-manager-resource-group` | Yes | - | Azure resource group where Traffic Manager profile will be created |
-| `external-dns.alpha.kubernetes.io/webhook-traffic-manager-profile-name` | No | Generated | Traffic Manager profile name (auto-generated from hostname if not specified) |
-| `external-dns.alpha.kubernetes.io/webhook-traffic-manager-weight` | No | 1 | Endpoint weight for weighted routing (1-1000) |
-| `external-dns.alpha.kubernetes.io/webhook-traffic-manager-priority` | No | - | Endpoint priority for priority routing (1-1000, lower is higher priority) |
-| `external-dns.alpha.kubernetes.io/webhook-traffic-manager-endpoint-name` | No | Generated | Endpoint name (auto-generated if not specified) |
-| `external-dns.alpha.kubernetes.io/webhook-traffic-manager-endpoint-location` | Yes | - | Azure region location for the endpoint (e.g., "eastus", "westus") |
-| `external-dns.alpha.kubernetes.io/webhook-traffic-manager-routing-method` | No | Weighted | Traffic Manager routing method: "Weighted", "Priority", "Performance" |
-| `external-dns.alpha.kubernetes.io/webhook-traffic-manager-monitor-path` | No | / | Health check HTTP path |
-| `external-dns.alpha.kubernetes.io/webhook-traffic-manager-monitor-port` | No | 80 | Health check port |
-| `external-dns.alpha.kubernetes.io/webhook-traffic-manager-monitor-protocol` | No | HTTP | Health check protocol: "HTTP" or "HTTPS" |
-| `external-dns.alpha.kubernetes.io/webhook-traffic-manager-endpoint-status` | No | Enabled | Endpoint status: "Enabled" or "Disabled" |
+| `external-dns.kubernetes.io/webhook-traffic-manager-enabled` | Yes | - | Set to "true" to enable Traffic Manager management |
+| `external-dns.kubernetes.io/webhook-traffic-manager-resource-group` | Yes | - | Azure resource group where Traffic Manager profile will be created |
+| `external-dns.kubernetes.io/webhook-traffic-manager-profile-name` | No | Generated | Traffic Manager profile name (auto-generated from hostname if not specified) |
+| `external-dns.kubernetes.io/webhook-traffic-manager-weight` | No | 1 | Endpoint weight for weighted routing (1-1000) |
+| `external-dns.kubernetes.io/webhook-traffic-manager-priority` | No | - | Endpoint priority for priority routing (1-1000, lower is higher priority) |
+| `external-dns.kubernetes.io/webhook-traffic-manager-endpoint-name` | No | Generated | Endpoint name (auto-generated if not specified) |
+| `external-dns.kubernetes.io/webhook-traffic-manager-endpoint-location` | Yes | - | Azure region location for the endpoint (e.g., "eastus", "westus") |
+| `external-dns.kubernetes.io/webhook-traffic-manager-routing-method` | No | Weighted | Traffic Manager routing method: "Weighted", "Priority", "Performance" |
+| `external-dns.kubernetes.io/webhook-traffic-manager-monitor-path` | No | / | Health check HTTP path |
+| `external-dns.kubernetes.io/webhook-traffic-manager-monitor-port` | No | 80 | Health check port |
+| `external-dns.kubernetes.io/webhook-traffic-manager-monitor-protocol` | No | HTTP | Health check protocol: "HTTP" or "HTTPS" |
+| `external-dns.kubernetes.io/webhook-traffic-manager-endpoint-status` | No | Enabled | Endpoint status: "Enabled" or "Disabled" |
+
+Changing a profile name or resource group migrates the endpoint to a replacement
+profile. For a resource-group move, choose a different profile name because
+Traffic Manager DNS names are globally unique. A profile identity change that
+keeps the same vanity hostname is rejected while the old profile has other
+endpoints, since switching the CNAME would strand those endpoints.
 
 ### Common Scenarios
 
@@ -244,25 +254,25 @@ Deploy the same application in two regions with equal weight:
 **East Region:**
 ```yaml
 annotations:
-  external-dns.alpha.kubernetes.io/hostname: myapp.example.com
-  external-dns.alpha.kubernetes.io/webhook-traffic-manager-enabled: "true"
-  external-dns.alpha.kubernetes.io/webhook-traffic-manager-resource-group: "my-tm-rg"
-  external-dns.alpha.kubernetes.io/webhook-traffic-manager-profile-name: "myapp-global"
-  external-dns.alpha.kubernetes.io/webhook-traffic-manager-weight: "50"
-  external-dns.alpha.kubernetes.io/webhook-traffic-manager-endpoint-name: "east"
-  external-dns.alpha.kubernetes.io/webhook-traffic-manager-endpoint-location: "eastus"
+  external-dns.kubernetes.io/hostname: myapp.example.com
+  external-dns.kubernetes.io/webhook-traffic-manager-enabled: "true"
+  external-dns.kubernetes.io/webhook-traffic-manager-resource-group: "my-tm-rg"
+  external-dns.kubernetes.io/webhook-traffic-manager-profile-name: "myapp-global"
+  external-dns.kubernetes.io/webhook-traffic-manager-weight: "50"
+  external-dns.kubernetes.io/webhook-traffic-manager-endpoint-name: "east"
+  external-dns.kubernetes.io/webhook-traffic-manager-endpoint-location: "eastus"
 ```
 
 **West Region:**
 ```yaml
 annotations:
-  external-dns.alpha.kubernetes.io/hostname: myapp.example.com
-  external-dns.alpha.kubernetes.io/webhook-traffic-manager-enabled: "true"
-  external-dns.alpha.kubernetes.io/webhook-traffic-manager-resource-group: "my-tm-rg"
-  external-dns.alpha.kubernetes.io/webhook-traffic-manager-profile-name: "myapp-global"
-  external-dns.alpha.kubernetes.io/webhook-traffic-manager-weight: "50"
-  external-dns.alpha.kubernetes.io/webhook-traffic-manager-endpoint-name: "west"
-  external-dns.alpha.kubernetes.io/webhook-traffic-manager-endpoint-location: "westus"
+  external-dns.kubernetes.io/hostname: myapp.example.com
+  external-dns.kubernetes.io/webhook-traffic-manager-enabled: "true"
+  external-dns.kubernetes.io/webhook-traffic-manager-resource-group: "my-tm-rg"
+  external-dns.kubernetes.io/webhook-traffic-manager-profile-name: "myapp-global"
+  external-dns.kubernetes.io/webhook-traffic-manager-weight: "50"
+  external-dns.kubernetes.io/webhook-traffic-manager-endpoint-name: "west"
+  external-dns.kubernetes.io/webhook-traffic-manager-endpoint-location: "westus"
 ```
 
 #### Blue-Green Deployment
@@ -272,21 +282,21 @@ Start with 100% traffic to blue, gradually shift to green:
 **Blue (Current Production):**
 ```yaml
 annotations:
-  external-dns.alpha.kubernetes.io/hostname: myapp.example.com
-  external-dns.alpha.kubernetes.io/webhook-traffic-manager-enabled: "true"
-  external-dns.alpha.kubernetes.io/webhook-traffic-manager-resource-group: "my-tm-rg"
-  external-dns.alpha.kubernetes.io/webhook-traffic-manager-weight: "90"  # Start reducing
-  external-dns.alpha.kubernetes.io/webhook-traffic-manager-endpoint-name: "blue"
+  external-dns.kubernetes.io/hostname: myapp.example.com
+  external-dns.kubernetes.io/webhook-traffic-manager-enabled: "true"
+  external-dns.kubernetes.io/webhook-traffic-manager-resource-group: "my-tm-rg"
+  external-dns.kubernetes.io/webhook-traffic-manager-weight: "90"  # Start reducing
+  external-dns.kubernetes.io/webhook-traffic-manager-endpoint-name: "blue"
 ```
 
 **Green (New Version):**
 ```yaml
 annotations:
-  external-dns.alpha.kubernetes.io/hostname: myapp.example.com
-  external-dns.alpha.kubernetes.io/webhook-traffic-manager-enabled: "true"
-  external-dns.alpha.kubernetes.io/webhook-traffic-manager-resource-group: "my-tm-rg"
-  external-dns.alpha.kubernetes.io/webhook-traffic-manager-weight: "10"  # Start increasing
-  external-dns.alpha.kubernetes.io/webhook-traffic-manager-endpoint-name: "green"
+  external-dns.kubernetes.io/hostname: myapp.example.com
+  external-dns.kubernetes.io/webhook-traffic-manager-enabled: "true"
+  external-dns.kubernetes.io/webhook-traffic-manager-resource-group: "my-tm-rg"
+  external-dns.kubernetes.io/webhook-traffic-manager-weight: "10"  # Start increasing
+  external-dns.kubernetes.io/webhook-traffic-manager-endpoint-name: "green"
 ```
 
 #### Priority-Based Failover
@@ -296,17 +306,17 @@ Primary region with failover to secondary:
 **Primary:**
 ```yaml
 annotations:
-  external-dns.alpha.kubernetes.io/webhook-traffic-manager-routing-method: "Priority"
-  external-dns.alpha.kubernetes.io/webhook-traffic-manager-priority: "1"
-  external-dns.alpha.kubernetes.io/webhook-traffic-manager-endpoint-name: "primary"
+  external-dns.kubernetes.io/webhook-traffic-manager-routing-method: "Priority"
+  external-dns.kubernetes.io/webhook-traffic-manager-priority: "1"
+  external-dns.kubernetes.io/webhook-traffic-manager-endpoint-name: "primary"
 ```
 
 **Secondary:**
 ```yaml
 annotations:
-  external-dns.alpha.kubernetes.io/webhook-traffic-manager-routing-method: "Priority"
-  external-dns.alpha.kubernetes.io/webhook-traffic-manager-priority: "2"
-  external-dns.alpha.kubernetes.io/webhook-traffic-manager-endpoint-name: "secondary"
+  external-dns.kubernetes.io/webhook-traffic-manager-routing-method: "Priority"
+  external-dns.kubernetes.io/webhook-traffic-manager-priority: "2"
+  external-dns.kubernetes.io/webhook-traffic-manager-endpoint-name: "secondary"
 ```
 
 ## Examples

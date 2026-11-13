@@ -3,7 +3,11 @@ set -e
 
 # Load configuration
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "${SCRIPT_DIR}/config.env"
+if [[ "${1:-}" == "--render" ]]; then
+    source "${SCRIPT_DIR}/../render.sh"
+else
+    source "${SCRIPT_DIR}/config.env"
+fi
 
 echo "=========================================="
 echo "Deploying External DNS Webhook to Clusters"
@@ -47,7 +51,7 @@ deploy_to_cluster() {
     # Create webhook config
     kubectl create configmap webhook-config \
         --from-literal=AZURE_SUBSCRIPTION_ID="${AZURE_SUBSCRIPTION_ID}" \
-        --from-literal=AZURE_RESOURCE_GROUPS="${TM_PROFILE_RG}" \
+        --from-literal=RESOURCE_GROUPS="${TM_PROFILE_RG}" \
         --from-literal=DOMAIN_FILTER="${DNS_ZONE_NAME}" \
         --namespace external-dns \
         --dry-run=client -o yaml | kubectl apply -f -
@@ -81,7 +85,7 @@ spec:
       containers:
       # Azure DNS Provider - manages A records for individual endpoints
       - name: external-dns-azure
-        image: registry.k8s.io/external-dns/external-dns:v0.20.0
+        image: registry.k8s.io/external-dns/external-dns:v0.24.0
         args:
         - --source=service
         - --source=crd
@@ -109,7 +113,7 @@ spec:
       
       # External DNS Webhook - calls Traffic Manager webhook
       - name: external-dns-webhook
-        image: registry.k8s.io/external-dns/external-dns:v0.20.0
+        image: registry.k8s.io/external-dns/external-dns:v0.24.0
         args:
         - --source=service
         - --source=crd
@@ -149,7 +153,7 @@ spec:
           value: "${DNS_ZONE_NAME}"
         - name: AZURE_SUBSCRIPTION_ID
           value: "${AZURE_SUBSCRIPTION_ID}"
-        - name: AZURE_RESOURCE_GROUPS
+        - name: RESOURCE_GROUPS
           value: "${TM_PROFILE_RG}"
         - name: AZURE_TENANT_ID
           value: "${AZURE_TENANT_ID}"

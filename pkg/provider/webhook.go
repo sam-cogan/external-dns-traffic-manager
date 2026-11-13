@@ -1,6 +1,7 @@
 package provider
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -8,14 +9,22 @@ import (
 	"go.uber.org/zap"
 )
 
+// WebhookProvider is the protocol-facing subset of a DNS provider.
+type WebhookProvider interface {
+	Records(context.Context) ([]*Endpoint, error)
+	ApplyChanges(context.Context, *Changes) error
+	AdjustEndpoints(context.Context, []*Endpoint) []*Endpoint
+	GetDomainFilter() DomainFilter
+}
+
 // WebhookServer handles HTTP requests for the webhook provider
 type WebhookServer struct {
-	provider *TrafficManagerProvider
+	provider WebhookProvider
 	logger   *zap.Logger
 }
 
 // NewWebhookServer creates a new webhook server
-func NewWebhookServer(provider *TrafficManagerProvider, logger *zap.Logger) *WebhookServer {
+func NewWebhookServer(provider WebhookProvider, logger *zap.Logger) *WebhookServer {
 	return &WebhookServer{
 		provider: provider,
 		logger:   logger,
@@ -35,13 +44,7 @@ func (s *WebhookServer) HandleNegotiate(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	response := NegotiationResponse{
-		Version: "1",
-		DomainFilter: DomainFilter{
-			Include: s.provider.domainFilter,
-			Exclude: []string{},
-		},
-	}
+	response := s.provider.GetDomainFilter()
 
 	w.Header().Set("Content-Type", "application/external.dns.webhook+json;version=1")
 	w.WriteHeader(http.StatusOK)
@@ -51,7 +54,7 @@ func (s *WebhookServer) HandleNegotiate(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	s.logger.Info("Negotiation response sent successfully", zap.Any("domainFilter", s.provider.domainFilter))
+	s.logger.Info("Negotiation response sent successfully", zap.Any("domainFilter", response))
 }
 
 // HandleHealth handles GET /healthz - Health check
@@ -95,6 +98,9 @@ func (s *WebhookServer) handleGetRecords(w http.ResponseWriter, r *http.Request)
 		http.Error(w, fmt.Sprintf("Failed to get records: %v", err), http.StatusInternalServerError)
 		return
 	}
+	if endpoints == nil {
+		endpoints = []*Endpoint{}
+	}
 
 	// Return endpoints array directly, not wrapped in an object
 	w.Header().Set("Content-Type", "application/external.dns.webhook+json;version=1")
@@ -112,10 +118,15 @@ func (s *WebhookServer) handleGetRecords(w http.ResponseWriter, r *http.Request)
 func (s *WebhookServer) handleApplyChanges(w http.ResponseWriter, r *http.Request) {
 	s.logger.Info("Handling apply changes request")
 
-	var changes Changes
+	var changes *Changes
 	if err := json.NewDecoder(r.Body).Decode(&changes); err != nil {
 		s.logger.Error("Failed to decode changes request", zap.Error(err))
 		http.Error(w, fmt.Sprintf("Invalid request body: %v", err), http.StatusBadRequest)
+		return
+	}
+	if err := validateChanges(changes); err != nil {
+		s.logger.Warn("Invalid changes request", zap.Error(err))
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
@@ -125,7 +136,7 @@ func (s *WebhookServer) handleApplyChanges(w http.ResponseWriter, r *http.Reques
 		zap.Int("updateNew", len(changes.UpdateNew)),
 		zap.Int("delete", len(changes.Delete)))
 
-	if err := s.provider.ApplyChanges(r.Context(), &changes); err != nil {
+	if err := s.provider.ApplyChanges(r.Context(), changes); err != nil {
 		s.logger.Error("Failed to apply changes", zap.Error(err))
 		http.Error(w, fmt.Sprintf("Failed to apply changes: %v", err), http.StatusInternalServerError)
 		return
@@ -154,10 +165,11 @@ func (s *WebhookServer) HandleAdjustEndpoints(w http.ResponseWriter, r *http.Req
 
 	s.logger.Info("Received endpoints to adjust", zap.Int("count", len(endpoints)))
 
-	// Adjust endpoints with Traffic Manager annotations
-	// Convert service A records to CNAME records pointing to Traffic Manager profiles
 	adjustedEndpoints := s.provider.AdjustEndpoints(r.Context(), endpoints)
-	
+	if adjustedEndpoints == nil {
+		adjustedEndpoints = []*Endpoint{}
+	}
+
 	w.Header().Set("Content-Type", "application/external.dns.webhook+json;version=1")
 	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(adjustedEndpoints); err != nil {

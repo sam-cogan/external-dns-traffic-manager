@@ -191,9 +191,9 @@ func (m *Manager) GetStats() map[string]interface{} {
 	}
 
 	return map[string]interface{}{
-		"totalProfiles":    len(m.profiles),
-		"totalEndpoints":   totalEndpoints,
-		"expiredProfiles":  expiredProfiles,
-		"cacheTTL":         m.cacheTTL.String(),
+		"totalProfiles":   len(m.profiles),
+		"totalEndpoints":  totalEndpoints,
+		"expiredProfiles": expiredProfiles,
+		"cacheTTL":        m.cacheTTL.String(),
 	}
 }

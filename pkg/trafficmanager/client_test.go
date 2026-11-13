@@ -106,10 +106,10 @@ func TestIsManagedByUs(t *testing.T) {
 }
 
 func TestIsNotFound(t *testing.T) {
-	if isNotFound(errors.New("transport failed")) || isNotFound(nil) {
+	if IsNotFound(errors.New("transport failed")) || IsNotFound(nil) {
 		t.Fatal("only an Azure 404 is a missing resource")
 	}
-	if !isNotFound(&azcore.ResponseError{StatusCode: http.StatusNotFound}) {
+	if !IsNotFound(&azcore.ResponseError{StatusCode: http.StatusNotFound}) {
 		t.Fatal("Azure 404 not recognized")
 	}
 }

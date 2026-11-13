@@ -38,6 +38,10 @@ spec:
         env:
           - name: AZURE_CLIENT_ID
             value: "your-managed-identity-client-id"  # UPDATE
+          - name: RESOURCE_GROUPS
+            value: "externaldns-tm-profiles"
+          - name: DOMAIN_FILTER
+            value: "example.com"
 
       - name: external-dns-webhook
         image: registry.k8s.io/external-dns/external-dns:v0.24.0

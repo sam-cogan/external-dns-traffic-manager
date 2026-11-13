@@ -284,18 +284,8 @@ func (p *TrafficManagerProvider) createEndpoint(ctx context.Context, endpoint *E
 			zap.String("fqdn", existing.FQDN))
 	}
 
-	// Use endpoint DNS name as target (this is the individual service DNS like demo-east.example.com)
-	// Traffic Manager will point to this DNS name instead of IP
-	targetDNS := endpoint.DNSName
-
-	// For A records, use the DNS name as target. For other record types, use targets
-	targets := []string{targetDNS}
-	if endpoint.RecordType != "A" && len(endpoint.Targets) > 0 {
-		targets = endpoint.Targets
-	}
-
 	// Create endpoints for each target
-	for i, target := range targets {
+	for i, target := range endpointTargets(endpoint) {
 		endpointConfig := config.ToEndpointConfig(target)
 
 		// If we have multiple targets, ensure unique endpoint names
@@ -388,9 +378,15 @@ func (p *TrafficManagerProvider) updateEndpoint(ctx context.Context, oldEndpoint
 		return fmt.Errorf("failed to parse old annotations: %w", err)
 	}
 
+	// Use vanity hostname if specified, otherwise use endpoint DNSName
+	vanityHostname := newConfig.Hostname
+	if vanityHostname == "" {
+		vanityHostname = newEndpoint.DNSName
+	}
+
 	// Generate names if not specified
 	if newConfig.ProfileName == "" {
-		newConfig.ProfileName = generateProfileName(newEndpoint.DNSName)
+		newConfig.ProfileName = generateProfileName(vanityHostname)
 	}
 	if newConfig.EndpointName == "" {
 		newConfig.EndpointName = generateEndpointName(newEndpoint.DNSName, newEndpoint.Targets)
@@ -403,14 +399,15 @@ func (p *TrafficManagerProvider) updateEndpoint(ctx context.Context, oldEndpoint
 		oldConfig.MonitorProtocol != newConfig.MonitorProtocol ||
 		oldConfig.MonitorPort != newConfig.MonitorPort ||
 		oldConfig.MonitorPath != newConfig.MonitorPath ||
-		oldConfig.HealthChecksEnabled != newConfig.HealthChecksEnabled {
+		oldConfig.HealthChecksEnabled != newConfig.HealthChecksEnabled ||
+		oldConfig.Hostname != newConfig.Hostname {
 
 		p.logger.Info("Updating Traffic Manager profile",
 			zap.String("profileName", newConfig.ProfileName))
 
 		profileConfig := newConfig.ToProfileConfig()
 		// Add hostname tag so we can map Traffic Manager profile back to DNS name
-		profileConfig.Tags["hostname"] = newEndpoint.DNSName
+		profileConfig.Tags["hostname"] = vanityHostname
 		_, err := p.tmClient.UpdateProfile(ctx, profileConfig)
 		if err != nil {
 			return fmt.Errorf("failed to update profile: %w", err)
@@ -418,8 +415,12 @@ func (p *TrafficManagerProvider) updateEndpoint(ctx context.Context, oldEndpoint
 	}
 
 	// Update endpoints
-	for _, target := range newEndpoint.Targets {
+	targets := endpointTargets(newEndpoint)
+	for i, target := range targets {
 		endpointConfig := newConfig.ToEndpointConfig(target)
+		if len(targets) > 1 {
+			endpointConfig.EndpointName = fmt.Sprintf("%s-%d", endpointConfig.EndpointName, i)
+		}
 
 		// Check if we should update weight or status
 		if oldConfig != nil &&
@@ -436,15 +437,15 @@ func (p *TrafficManagerProvider) updateEndpoint(ctx context.Context, oldEndpoint
 			}
 
 			// Update state with modified endpoint
-			p.stateManager.SetEndpoint(newEndpoint.DNSName, endpointConfig.EndpointName, convertToStateEndpoint(endpointState))
+			p.stateManager.SetEndpoint(vanityHostname, endpointConfig.EndpointName, convertToStateEndpoint(endpointState))
 		}
 	}
 
 	// Refresh complete profile state
 	profileState, err := p.tmClient.GetProfileState(ctx, newConfig.ResourceGroup, newConfig.ProfileName)
 	if err == nil {
-		profileState.Hostname = newEndpoint.DNSName
-		p.stateManager.SetProfile(newEndpoint.DNSName, profileState)
+		profileState.Hostname = vanityHostname
+		p.stateManager.SetProfile(vanityHostname, profileState)
 	}
 
 	p.logger.Info("Successfully updated Traffic Manager endpoint",
@@ -482,65 +483,70 @@ func (p *TrafficManagerProvider) deleteEndpoint(ctx context.Context, endpoint *E
 
 	// Generate names if not specified
 	if config.ProfileName == "" {
-		config.ProfileName = generateProfileName(endpoint.DNSName)
+		config.ProfileName = generateProfileName(vanityHostname)
 	}
 	if config.EndpointName == "" {
 		config.EndpointName = generateEndpointName(endpoint.DNSName, endpoint.Targets)
 	}
 
 	// Delete endpoints
-	for _ = range endpoint.Targets {
+	targets := endpointTargets(endpoint)
+	for i := range targets {
+		endpointName := config.EndpointName
+		if len(targets) > 1 {
+			endpointName = fmt.Sprintf("%s-%d", endpointName, i)
+		}
 		p.logger.Info("Deleting Traffic Manager endpoint",
-			zap.String("endpointName", config.EndpointName),
+			zap.String("endpointName", endpointName),
 			zap.String("profileName", config.ProfileName))
 
-		err := p.tmClient.DeleteEndpoint(ctx, config.ResourceGroup, config.ProfileName, config.EndpointType, config.EndpointName)
+		err := p.tmClient.DeleteEndpoint(ctx, config.ResourceGroup, config.ProfileName, config.EndpointType, endpointName)
 		if err != nil {
 			p.logger.Warn("Failed to delete endpoint",
-				zap.String("endpointName", config.EndpointName),
+				zap.String("endpointName", endpointName),
 				zap.Error(err))
 			return fmt.Errorf("failed to delete endpoint: %w", err)
 		} else {
 			// Remove from state
-			p.stateManager.DeleteEndpoint(endpoint.DNSName, config.EndpointName)
+			p.stateManager.DeleteEndpoint(vanityHostname, endpointName)
 		}
 	}
 
 	// Check if profile still has endpoints
 	profileState, err := p.tmClient.GetProfileState(ctx, config.ResourceGroup, config.ProfileName)
-	if err == nil && len(profileState.Endpoints) == 0 {
+	profileMissing := trafficmanager.IsNotFound(err)
+	if err != nil && !profileMissing {
+		return fmt.Errorf("failed to inspect profile after deletion: %w", err)
+	}
+	if profileMissing || len(profileState.Endpoints) == 0 {
 		// Profile is empty, delete it
-		p.logger.Info("Deleting empty Traffic Manager profile",
-			zap.String("profileName", config.ProfileName))
+		if !profileMissing {
+			p.logger.Info("Deleting empty Traffic Manager profile",
+				zap.String("profileName", config.ProfileName))
 
-		err = p.tmClient.DeleteProfile(ctx, config.ResourceGroup, config.ProfileName)
-		if err != nil {
-			p.logger.Warn("Failed to delete profile",
-				zap.String("profileName", config.ProfileName),
-				zap.Error(err))
-			return fmt.Errorf("failed to delete profile: %w", err)
-		} else {
-			p.stateManager.DeleteProfile(vanityHostname)
-
-			// Delete the DNSEndpoint CRD for vanity URL
-			if vanityHostname != "" && vanityHostname != endpoint.DNSName {
-				dnsEndpointName := dnsendpoint.GenerateName(vanityHostname)
-				err = p.dnsEndpointManager.Delete(ctx, dnsEndpointName)
-				if err != nil {
-					p.logger.Warn("Failed to delete DNSEndpoint for vanity URL",
-						zap.String("vanityHostname", vanityHostname),
-						zap.String("dnsEndpointName", dnsEndpointName),
-						zap.Error(err))
-					return fmt.Errorf("failed to delete DNSEndpoint: %w", err)
-				} else {
-					p.logger.Info("Successfully deleted DNSEndpoint for vanity URL",
-						zap.String("vanityHostname", vanityHostname),
-						zap.String("dnsEndpointName", dnsEndpointName))
-				}
+			if err = p.tmClient.DeleteProfile(ctx, config.ResourceGroup, config.ProfileName); err != nil {
+				p.logger.Warn("Failed to delete profile",
+					zap.String("profileName", config.ProfileName),
+					zap.Error(err))
+				return fmt.Errorf("failed to delete profile: %w", err)
 			}
 		}
-	} else if err != nil {
-		return fmt.Errorf("failed to inspect profile after deletion: %w", err)
+		p.stateManager.DeleteProfile(vanityHostname)
+
+		// Delete the DNSEndpoint CRD for vanity URL.
+		if vanityHostname != "" && vanityHostname != endpoint.DNSName {
+			dnsEndpointName := dnsendpoint.GenerateName(vanityHostname)
+			if err = p.dnsEndpointManager.Delete(ctx, dnsEndpointName); err != nil {
+				p.logger.Warn("Failed to delete DNSEndpoint for vanity URL",
+					zap.String("vanityHostname", vanityHostname),
+					zap.String("dnsEndpointName", dnsEndpointName),
+					zap.Error(err))
+				return fmt.Errorf("failed to delete DNSEndpoint: %w", err)
+			}
+			p.logger.Info("Successfully deleted DNSEndpoint for vanity URL",
+				zap.String("vanityHostname", vanityHostname),
+				zap.String("dnsEndpointName", dnsEndpointName))
+		}
 	} else {
 		// Profile still has endpoints, update state
 		profileState.Hostname = vanityHostname
@@ -562,6 +568,13 @@ func endpointAnnotations(endpoint *Endpoint) map[string]string {
 		result[property.Name] = property.Value
 	}
 	return result
+}
+
+func endpointTargets(endpoint *Endpoint) []string {
+	if endpoint.RecordType == "A" || len(endpoint.Targets) == 0 {
+		return []string{endpoint.DNSName}
+	}
+	return endpoint.Targets
 }
 
 func validateChanges(changes *Changes) error {

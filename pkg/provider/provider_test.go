@@ -3,9 +3,11 @@ package provider
 import (
 	"context"
 	"errors"
+	"net/http"
 	"testing"
 	"time"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/sam-cogan/external-dns-traffic-manager/pkg/annotations"
 	"github.com/sam-cogan/external-dns-traffic-manager/pkg/state"
 	"github.com/sam-cogan/external-dns-traffic-manager/pkg/trafficmanager"
@@ -17,6 +19,12 @@ type fakeTM struct {
 	calls    []string
 	profiles []*state.ProfileState
 	profile  *state.ProfileState
+	stateErr error
+
+	updatedProfile      *trafficmanager.ProfileConfig
+	updatedEndpoint     *trafficmanager.EndpointConfig
+	deletedProfileNames []string
+	deletedEndpoints    []string
 }
 
 func (f *fakeTM) call(name string) error {
@@ -35,31 +43,48 @@ func (f *fakeTM) CreateProfile(context.Context, *trafficmanager.ProfileConfig) (
 func (f *fakeTM) GetProfile(context.Context, string, string) (*trafficmanager.ProfileState, error) {
 	return &trafficmanager.ProfileState{}, f.call("get-profile")
 }
-func (f *fakeTM) UpdateProfile(context.Context, *trafficmanager.ProfileConfig) (*trafficmanager.ProfileState, error) {
+func (f *fakeTM) UpdateProfile(_ context.Context, config *trafficmanager.ProfileConfig) (*trafficmanager.ProfileState, error) {
+	f.updatedProfile = config
 	return &trafficmanager.ProfileState{}, f.call("update-profile")
 }
-func (f *fakeTM) DeleteProfile(context.Context, string, string) error {
+func (f *fakeTM) DeleteProfile(_ context.Context, _, profileName string) error {
+	f.deletedProfileNames = append(f.deletedProfileNames, profileName)
 	return f.call("delete-profile")
 }
 func (f *fakeTM) CreateEndpoint(_ context.Context, _, _ string, cfg *trafficmanager.EndpointConfig) (*trafficmanager.EndpointState, error) {
 	return &trafficmanager.EndpointState{EndpointName: cfg.EndpointName}, f.call("create-endpoint")
 }
 func (f *fakeTM) UpdateEndpoint(_ context.Context, _, _ string, cfg *trafficmanager.EndpointConfig) (*trafficmanager.EndpointState, error) {
+	f.updatedEndpoint = cfg
 	return &trafficmanager.EndpointState{EndpointName: cfg.EndpointName}, f.call("update-endpoint")
 }
-func (f *fakeTM) DeleteEndpoint(context.Context, string, string, string, string) error {
+func (f *fakeTM) DeleteEndpoint(_ context.Context, _, profileName, _, endpointName string) error {
+	f.deletedProfileNames = append(f.deletedProfileNames, profileName)
+	f.deletedEndpoints = append(f.deletedEndpoints, endpointName)
 	return f.call("delete-endpoint")
 }
 func (f *fakeTM) GetProfileState(context.Context, string, string) (*state.ProfileState, error) {
-	return f.profile, f.call("state")
+	if err := f.call("state"); err != nil {
+		return nil, err
+	}
+	if f.stateErr != nil {
+		return nil, f.stateErr
+	}
+	return f.profile, nil
 }
 
-type fakeDNS struct{ err error }
+type fakeDNS struct {
+	err     error
+	deleted []string
+}
 
 func (f *fakeDNS) CreateOrUpdateCNAME(context.Context, string, string, string, int64) error {
 	return f.err
 }
-func (f *fakeDNS) Delete(context.Context, string) error { return f.err }
+func (f *fakeDNS) Delete(_ context.Context, name string) error {
+	f.deleted = append(f.deleted, name)
+	return f.err
+}
 
 func testProvider() (*TrafficManagerProvider, *fakeTM, *fakeDNS) {
 	tm := &fakeTM{profile: &state.ProfileState{
@@ -202,6 +227,108 @@ func TestDeletePreservesNonEmptyProfile(t *testing.T) {
 	tm.profile.Endpoints = map[string]*state.EndpointState{}
 	if err := p.deleteEndpoint(context.Background(), e); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestUpdateUsesVanityHostnameAndARecordTarget(t *testing.T) {
+	p, tm, _ := testProvider()
+	oldEndpoint := configuredEndpoint()
+	newEndpoint := configuredEndpoint()
+	newEndpoint.ProviderSpecific = append(newEndpoint.ProviderSpecific,
+		ProviderSpecificProperty{Name: annotations.AnnotationWeight, Value: "200"},
+		ProviderSpecificProperty{Name: annotations.AnnotationRoutingMethod, Value: "Priority"})
+
+	if err := p.updateEndpoint(context.Background(), oldEndpoint, newEndpoint); err != nil {
+		t.Fatal(err)
+	}
+	if tm.updatedEndpoint == nil || tm.updatedEndpoint.Target != newEndpoint.DNSName {
+		t.Fatalf("A-record update target = %+v, want DNS name %q", tm.updatedEndpoint, newEndpoint.DNSName)
+	}
+	if tm.updatedProfile == nil {
+		t.Fatal("profile settings were not updated")
+	}
+	if got, want := tm.updatedProfile.ProfileName, "app-example-com-tm"; got != want {
+		t.Errorf("profile name = %q, want %q", got, want)
+	}
+	if got, want := tm.updatedProfile.Tags["hostname"], "app.example.com"; got != want {
+		t.Errorf("profile hostname tag = %q, want %q", got, want)
+	}
+	if _, ok := p.stateManager.GetProfile("app.example.com"); !ok {
+		t.Fatal("updated profile was not stored under vanity hostname")
+	}
+	if _, ok := p.stateManager.GetProfile("east.example.com"); ok {
+		t.Fatal("updated profile was also stored under service DNS name")
+	}
+}
+
+func TestARecordWithMultipleTargetsUsesSingleNormalizedEndpoint(t *testing.T) {
+	p, tm, _ := testProvider()
+	oldEndpoint := configuredEndpoint()
+	newEndpoint := configuredEndpoint()
+	oldEndpoint.Targets = append(oldEndpoint.Targets, "192.0.2.2")
+	newEndpoint.Targets = append(newEndpoint.Targets, "192.0.2.2")
+	newEndpoint.ProviderSpecific = append(newEndpoint.ProviderSpecific,
+		ProviderSpecificProperty{Name: annotations.AnnotationWeight, Value: "200"})
+
+	if err := p.updateEndpoint(context.Background(), oldEndpoint, newEndpoint); err != nil {
+		t.Fatal(err)
+	}
+	if tm.updatedEndpoint == nil || tm.updatedEndpoint.EndpointName != "192-0-2-1" {
+		t.Fatalf("updated endpoint = %+v, want the unsuffixed normalized endpoint", tm.updatedEndpoint)
+	}
+	if tm.updatedEndpoint.Target != newEndpoint.DNSName {
+		t.Fatalf("A-record update target = %q, want DNS name %q", tm.updatedEndpoint.Target, newEndpoint.DNSName)
+	}
+
+	tm.calls = nil
+	if err := p.deleteEndpoint(context.Background(), newEndpoint); err != nil {
+		t.Fatal(err)
+	}
+	deleteCalls := 0
+	for _, call := range tm.calls {
+		if call == "delete-endpoint" {
+			deleteCalls++
+		}
+	}
+	if deleteCalls != 1 {
+		t.Fatalf("delete-endpoint calls = %d, want 1 (calls: %v)", deleteCalls, tm.calls)
+	}
+	if len(tm.deletedEndpoints) != 1 || tm.deletedEndpoints[0] != "192-0-2-1" {
+		t.Fatalf("deleted endpoint names = %v, want [192-0-2-1]", tm.deletedEndpoints)
+	}
+}
+
+func TestDeleteRetriesVanityCleanupAfterProfileDeletion(t *testing.T) {
+	p, tm, dns := testProvider()
+	p.stateManager.SetProfile("app.example.com", tm.profile)
+	dns.err = errors.New("DNS endpoint unavailable")
+
+	endpoint := configuredEndpoint()
+	if err := p.deleteEndpoint(context.Background(), endpoint); err == nil {
+		t.Fatal("expected the DNSEndpoint deletion error")
+	}
+	if len(tm.deletedProfileNames) != 2 || tm.deletedProfileNames[0] != "app-example-com-tm" ||
+		tm.deletedProfileNames[1] != "app-example-com-tm" {
+		t.Fatalf("deletion used unexpected profile names: %v", tm.deletedProfileNames)
+	}
+	if _, ok := p.stateManager.GetProfile("app.example.com"); ok {
+		t.Fatal("deleted profile remained in state")
+	}
+
+	tm.stateErr = &azcore.ResponseError{StatusCode: http.StatusNotFound}
+	tm.calls = nil
+	dns.err = nil
+	if err := p.deleteEndpoint(context.Background(), endpoint); err != nil {
+		t.Fatalf("retry after profile deletion failed: %v", err)
+	}
+	for _, call := range tm.calls {
+		if call == "delete-profile" {
+			t.Fatal("retried deletion of a profile that is already absent")
+		}
+	}
+	if len(dns.deleted) != 2 || dns.deleted[0] != "app-example-com-tm-cname" ||
+		dns.deleted[1] != "app-example-com-tm-cname" {
+		t.Fatalf("vanity DNSEndpoint was not retried: %v", dns.deleted)
 	}
 }
 

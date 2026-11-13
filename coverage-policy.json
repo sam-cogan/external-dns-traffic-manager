@@ -14,5 +14,5 @@
   {"file":"pkg/trafficmanager/sync.go","function":"isManagedByUs","minimum":100,"risk":"ownership"},
   {"file":"pkg/trafficmanager/endpoint.go","function":"DeleteEndpoint","minimum":90,"risk":"deletion"},
   {"file":"pkg/trafficmanager/profile.go","function":"DeleteProfile","minimum":90,"risk":"deletion"},
-  {"file":"pkg/trafficmanager/client.go","function":"isNotFound","minimum":100,"risk":"error-classification"}
+  {"file":"pkg/trafficmanager/client.go","function":"IsNotFound","minimum":100,"risk":"error-classification"}
 ]

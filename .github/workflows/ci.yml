@@ -160,7 +160,6 @@ jobs:
           image-ref: external-dns-traffic-manager-webhook:ci
           scanners: vuln,secret
           severity: HIGH,CRITICAL
-          ignore-unfixed: true
           exit-code: "1"
 
   ci-required:

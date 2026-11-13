@@ -51,7 +51,7 @@ deploy_to_cluster() {
     # Create webhook config
     kubectl create configmap webhook-config \
         --from-literal=AZURE_SUBSCRIPTION_ID="${AZURE_SUBSCRIPTION_ID}" \
-        --from-literal=AZURE_RESOURCE_GROUPS="${TM_PROFILE_RG}" \
+        --from-literal=RESOURCE_GROUPS="${TM_PROFILE_RG}" \
         --from-literal=DOMAIN_FILTER="${DNS_ZONE_NAME}" \
         --namespace external-dns \
         --dry-run=client -o yaml | kubectl apply -f -
@@ -153,7 +153,7 @@ spec:
           value: "${DNS_ZONE_NAME}"
         - name: AZURE_SUBSCRIPTION_ID
           value: "${AZURE_SUBSCRIPTION_ID}"
-        - name: AZURE_RESOURCE_GROUPS
+        - name: RESOURCE_GROUPS
           value: "${TM_PROFILE_RG}"
         - name: AZURE_TENANT_ID
           value: "${AZURE_TENANT_ID}"

@@ -31,15 +31,17 @@ spec:
           - --source=service
           - --source=ingress
           - --provider=azure
-          - --azure-resource-group=your-dns-rg  # UPDATE: Your DNS zone resource group
-          - --azure-subscription-id=your-subscription-id  # UPDATE: Your subscription ID
-          - --domain-filter=example.com  # UPDATE: Your domain
+          - --azure-resource-group=__DNS_ZONE_RESOURCE_GROUP__
+          - --azure-subscription-id=__AZURE_SUBSCRIPTION_ID__
+          - --domain-filter=__DOMAIN_FILTER__
           - --txt-owner-id=external-dns-azure
           - --interval=1m
           - --log-level=info
         env:
           - name: AZURE_CLIENT_ID
-            value: "your-managed-identity-client-id"  # UPDATE: Your managed identity client ID
+            value: "__AZURE_CLIENT_ID__"
+          - name: AZURE_TENANT_ID
+            value: "__AZURE_TENANT_ID__"
 
       # External DNS - Webhook Provider
       # Routes Traffic Manager requests to the webhook
@@ -50,7 +52,7 @@ spec:
           - --source=ingress
           - --provider=webhook
           - --webhook-provider-url=http://localhost:8888
-          - --domain-filter=example.com  # UPDATE: Your domain
+          - --domain-filter=__DOMAIN_FILTER__
           - --txt-owner-id=external-dns-webhook
           - --interval=1m
           - --log-level=info
@@ -58,7 +60,7 @@ spec:
       # Traffic Manager Webhook Provider
       # Manages Azure Traffic Manager profiles and endpoints
       - name: traffic-manager-webhook
-        image: your-registry.azurecr.io/external-dns-traffic-manager-webhook:latest  # UPDATE: Your container registry
+        image: __CONTAINER_IMAGE__
         imagePullPolicy: Always
         ports:
         - containerPort: 8888
@@ -73,11 +75,15 @@ spec:
           - name: LOG_LEVEL
             value: "info"
           - name: AZURE_SUBSCRIPTION_ID
-            value: "your-subscription-id"  # UPDATE: Your subscription ID
+            value: "__AZURE_SUBSCRIPTION_ID__"
           - name: AZURE_TENANT_ID
-            value: "your-tenant-id"  # UPDATE: Your tenant ID
+            value: "__AZURE_TENANT_ID__"
           - name: AZURE_CLIENT_ID
-            value: "your-managed-identity-client-id"  # UPDATE: Your managed identity client ID
+            value: "__AZURE_CLIENT_ID__"
+          - name: RESOURCE_GROUPS
+            value: "__TM_RESOURCE_GROUP__"
+          - name: DOMAIN_FILTER
+            value: "__DOMAIN_FILTER__"
         livenessProbe:
           httpGet:
             path: /healthz

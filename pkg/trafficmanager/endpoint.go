@@ -219,7 +219,7 @@ func (c *Client) DeleteEndpoint(ctx context.Context, resourceGroup, profileName,
 		nil,
 	)
 	if err != nil {
-		if isNotFound(err) {
+		if IsNotFound(err) {
 			return nil
 		}
 		return fmt.Errorf("failed to delete endpoint: %w", err)

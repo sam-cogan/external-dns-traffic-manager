@@ -11,7 +11,8 @@ import (
 	"go.uber.org/zap"
 )
 
-func isNotFound(err error) bool {
+// IsNotFound reports whether an Azure operation failed because the resource is absent.
+func IsNotFound(err error) bool {
 	var responseError *azcore.ResponseError
 	return errors.As(err, &responseError) && responseError.StatusCode == http.StatusNotFound
 }

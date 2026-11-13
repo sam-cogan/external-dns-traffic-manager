@@ -24,16 +24,19 @@ This setup includes:
 
 ## Quick Deploy
 
-1. Update the configuration values in `external-dns.yaml`:
-   - Replace `your-subscription-id`
-   - Replace `your-registry.azurecr.io/external-dns-traffic-manager-webhook:latest` with your actual container registry
-   - Replace `your-dns-rg`
-   - Replace `your-tm-rg`
-   - Replace `example.com` with your domain
+1. Update the substitution tokens in `external-dns.yaml`:
+   - `__AZURE_SUBSCRIPTION_ID__`, `__AZURE_TENANT_ID__`, and `__AZURE_CLIENT_ID__`
+   - `__DNS_ZONE_RESOURCE_GROUP__` and `__TM_RESOURCE_GROUP__`
+   - `__CONTAINER_IMAGE__` and `__DOMAIN_FILTER__`
 
    > [!IMPORTANT]  
    > Make sure to update the `image:` field in the deployment YAML to point to your container registry where you pushed the webhook image.
    > You may also want to update the `--txt-owner-id` field to match your deployment. This field is important and must be unique per cluster, as it is used to determine ownership of the DNS records.
+
+   The legacy `deploy/deploy.sh` script performs these substitutions for you.
+   It reads `deploy/azure/infrastructure.env` when present and prompts for any
+   missing subscription, DNS/Traffic Manager resource groups, identity IDs,
+   registry, and domain values.
 
 2. Deploy External DNS:
    ```bash

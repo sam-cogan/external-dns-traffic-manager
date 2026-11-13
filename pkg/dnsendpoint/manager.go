@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"go.uber.org/zap"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -112,6 +113,9 @@ func (m *Manager) Delete(ctx context.Context, name string) error {
 
 	err := m.client.Resource(DNSEndpointGVR()).Namespace(m.namespace).Delete(ctx, name, metav1.DeleteOptions{})
 	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil
+		}
 		return fmt.Errorf("failed to delete DNSEndpoint: %w", err)
 	}
 

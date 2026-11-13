@@ -98,6 +98,21 @@ func TestRealExternalDNSClient(t *testing.T) {
 		if b.changes == nil {
 			t.Fatal("POST did not reach provider")
 		}
+		gotCounts := []int{
+			len(b.changes.Create),
+			len(b.changes.UpdateOld),
+			len(b.changes.UpdateNew),
+			len(b.changes.Delete),
+		}
+		wantCounts := []int{
+			len(batch.Create),
+			len(batch.UpdateOld),
+			len(batch.UpdateNew),
+			len(batch.Delete),
+		}
+		if !reflect.DeepEqual(gotCounts, wantCounts) {
+			t.Fatalf("change-list lengths = %v, want %v", gotCounts, wantCounts)
+		}
 		for _, endpoints := range [][]*local.Endpoint{b.changes.Create, b.changes.UpdateOld, b.changes.UpdateNew, b.changes.Delete} {
 			for _, got := range endpoints {
 				if got.DNSName != e.DNSName || got.RecordTTL != 300 || got.SetIdentifier != "east" ||

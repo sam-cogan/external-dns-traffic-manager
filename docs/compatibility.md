@@ -8,7 +8,7 @@ pass the complete matrix before release.
 
 | Component | Tested support |
 |---|---|
-| Go | 1.27.3 toolchain; container builder pinned to the same patch |
+| Go | 1.27.4 toolchain; container builder pinned to the same patch |
 | ExternalDNS | v0.23.0 and v0.24.0; webhook protocol v1; examples use v0.24.0 |
 | Kubernetes client libraries | `k8s.io/api`, `apimachinery`, and `client-go` v0.37.1 |
 | Kubernetes API and kubectl | 1.35.8, 1.36.4, and 1.37.0; upstream Kind images pinned by digest and matching kubectl clients |

@@ -3,6 +3,15 @@ kind: Namespace
 metadata:
   name: external-dns
 ---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: external-dns-azure-config
+  namespace: external-dns
+data:
+  azure.json: |
+    {"useWorkloadIdentityExtension": true}
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -32,6 +41,7 @@ spec:
           - --source=ingress
           - --source=crd
           - --provider=azure
+          - --azure-config-file=/etc/external-dns/azure.json
           - --azure-resource-group=__DNS_ZONE_RESOURCE_GROUP__
           - --azure-subscription-id=__AZURE_SUBSCRIPTION_ID__
           - --domain-filter=__DOMAIN_FILTER__
@@ -43,6 +53,10 @@ spec:
             value: "__AZURE_CLIENT_ID__"
           - name: AZURE_TENANT_ID
             value: "__AZURE_TENANT_ID__"
+        volumeMounts:
+          - name: azure-config
+            mountPath: /etc/external-dns
+            readOnly: true
 
       # External DNS - Webhook Provider
       # Routes Traffic Manager requests to the webhook
@@ -97,3 +111,7 @@ spec:
             port: 8888
           initialDelaySeconds: 5
           periodSeconds: 5
+      volumes:
+        - name: azure-config
+          configMap:
+            name: external-dns-azure-config

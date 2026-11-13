@@ -36,7 +36,9 @@ This setup includes:
    The legacy `deploy/deploy.sh` script performs these substitutions for you.
    It reads `deploy/azure/infrastructure.env` when present and prompts for any
    missing subscription, DNS/Traffic Manager resource groups, identity IDs,
-   registry, and domain values.
+   registry, and domain values. The manifest mounts a non-secret Azure
+   configuration file enabling workload identity; the subscription and DNS
+   resource group are supplied to ExternalDNS as flags.
 
 2. Deploy External DNS:
    ```bash

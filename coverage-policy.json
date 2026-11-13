@@ -6,7 +6,7 @@
   {"file":"pkg/provider/provider.go","function":"Records","minimum":80,"risk":"reconciliation"},
   {"file":"pkg/provider/provider.go","function":"createEndpoint","minimum":80,"risk":"reconciliation"},
   {"file":"pkg/provider/provider.go","function":"updateEndpoint","minimum":80,"risk":"reconciliation"},
-  {"file":"pkg/provider/provider.go","function":"deleteEndpoint","minimum":90,"risk":"deletion"},
+  {"file":"pkg/provider/provider.go","function":"deleteEndpointForMigration","minimum":90,"risk":"deletion"},
   {"file":"pkg/provider/filter.go","function":"matchesDomainFilter","minimum":90,"risk":"ownership"},
   {"file":"pkg/provider/filter.go","function":"matchesDomain","minimum":90,"risk":"ownership"},
   {"file":"pkg/state/manager.go","function":"DeleteProfile","minimum":90,"risk":"deletion"},

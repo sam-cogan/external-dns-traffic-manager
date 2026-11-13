@@ -403,7 +403,37 @@ func (p *TrafficManagerProvider) updateEndpoint(ctx context.Context, oldEndpoint
 		dnsendpoint.GenerateName(oldHostname) == dnsendpoint.GenerateName(vanityHostname) {
 		return fmt.Errorf("vanity hostnames %q and %q produce the same DNSEndpoint name", oldHostname, vanityHostname)
 	}
-	if hostnameChanged && (oldProfileName != newConfig.ProfileName || oldConfig.ResourceGroup != newConfig.ResourceGroup) {
+	if oldProfileName != newConfig.ProfileName || oldConfig.ResourceGroup != newConfig.ResourceGroup {
+		if oldProfileName == newConfig.ProfileName && oldConfig.ResourceGroup != newConfig.ResourceGroup {
+			return fmt.Errorf("cannot safely migrate profile %q to another resource group with the same globally unique DNS name; choose a different profile name", oldProfileName)
+		}
+		preserveVanity := oldHostname == vanityHostname
+		if preserveVanity {
+			oldProfile, err := p.tmClient.GetProfileState(ctx, oldConfig.ResourceGroup, oldProfileName)
+			if err != nil && !trafficmanager.IsNotFound(err) {
+				return fmt.Errorf("failed to inspect old profile before migration: %w", err)
+			}
+			if err == nil {
+				endpointName := oldConfig.EndpointName
+				if endpointName == "" {
+					endpointName = generateEndpointName(oldEndpoint.DNSName, oldEndpoint.Targets)
+				}
+				moving := make(map[string]bool)
+				targets := endpointTargets(oldEndpoint)
+				for i := range targets {
+					name := endpointName
+					if len(targets) > 1 {
+						name = fmt.Sprintf("%s-%d", name, i)
+					}
+					moving[name] = true
+				}
+				for name := range oldProfile.Endpoints {
+					if !moving[name] {
+						return fmt.Errorf("cannot migrate hostname %q while old profile has other endpoints", oldHostname)
+					}
+				}
+			}
+		}
 		if err := p.createEndpoint(ctx, newEndpoint); err != nil {
 			return fmt.Errorf("failed to create replacement profile: %w", err)
 		}
@@ -414,9 +444,11 @@ func (p *TrafficManagerProvider) updateEndpoint(ctx context.Context, oldEndpoint
 		if err := p.ensureVanityCNAME(ctx, vanityHostname, newEndpoint.DNSName, profile.FQDN); err != nil {
 			return err
 		}
-		if err := p.deleteEndpoint(ctx, oldEndpoint); err != nil {
+		if err := p.deleteEndpointForMigration(ctx, oldEndpoint, preserveVanity); err != nil {
 			return fmt.Errorf("failed to clean up old profile: %w", err)
 		}
+		profile.Hostname = vanityHostname
+		p.stateManager.SetProfile(vanityHostname, profile)
 		return nil
 	}
 	if newConfig.EndpointName == "" {
@@ -515,6 +547,10 @@ func (p *TrafficManagerProvider) ensureVanityCNAME(ctx context.Context, hostname
 
 // deleteEndpoint deletes a Traffic Manager endpoint
 func (p *TrafficManagerProvider) deleteEndpoint(ctx context.Context, endpoint *Endpoint) error {
+	return p.deleteEndpointForMigration(ctx, endpoint, false)
+}
+
+func (p *TrafficManagerProvider) deleteEndpointForMigration(ctx context.Context, endpoint *Endpoint, preserveVanity bool) error {
 	if endpoint.RecordType == "TXT" {
 		return nil
 	}
@@ -565,7 +601,7 @@ func (p *TrafficManagerProvider) deleteEndpoint(ctx context.Context, endpoint *E
 				zap.String("endpointName", endpointName),
 				zap.Error(err))
 			return fmt.Errorf("failed to delete endpoint: %w", err)
-		} else {
+		} else if !preserveVanity {
 			// Remove from state
 			p.stateManager.DeleteEndpoint(vanityHostname, endpointName)
 		}
@@ -590,10 +626,12 @@ func (p *TrafficManagerProvider) deleteEndpoint(ctx context.Context, endpoint *E
 				return fmt.Errorf("failed to delete profile: %w", err)
 			}
 		}
-		p.stateManager.DeleteProfile(vanityHostname)
+		if !preserveVanity {
+			p.stateManager.DeleteProfile(vanityHostname)
+		}
 
 		// Delete the DNSEndpoint CRD for vanity URL.
-		if vanityHostname != "" && vanityHostname != endpoint.DNSName {
+		if !preserveVanity && vanityHostname != "" && vanityHostname != endpoint.DNSName {
 			dnsEndpointName := dnsendpoint.GenerateName(vanityHostname)
 			if err = p.dnsEndpointManager.Delete(ctx, dnsEndpointName); err != nil {
 				p.logger.Warn("Failed to delete DNSEndpoint for vanity URL",
@@ -606,7 +644,7 @@ func (p *TrafficManagerProvider) deleteEndpoint(ctx context.Context, endpoint *E
 				zap.String("vanityHostname", vanityHostname),
 				zap.String("dnsEndpointName", dnsEndpointName))
 		}
-	} else {
+	} else if !preserveVanity {
 		// Profile still has endpoints, update state
 		profileState.Hostname = vanityHostname
 		p.stateManager.SetProfile(vanityHostname, profileState)

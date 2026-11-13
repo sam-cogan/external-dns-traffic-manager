@@ -127,9 +127,17 @@ func TestRealExternalDNSClient(t *testing.T) {
 			}
 		}
 	}
-	b.records = []*local.Endpoint{{DNSName: e.DNSName, RecordType: "A", Targets: []string{"192.0.2.1"}, RecordTTL: 300}}
+	rawRecord, err := json.Marshal(e)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var backendRecord local.Endpoint
+	if err := json.Unmarshal(rawRecord, &backendRecord); err != nil {
+		t.Fatal(err)
+	}
+	b.records = []*local.Endpoint{&backendRecord}
 	records, err = client.Records(t.Context())
-	if err != nil || len(records) != 1 || records[0].DNSName != e.DNSName {
+	if err != nil || len(records) != 1 || !reflect.DeepEqual(records[0], e) {
 		t.Fatalf("GET records: %v, %v", records, err)
 	}
 	// Assert the literal wire shape too: unknown JSON fields can otherwise be

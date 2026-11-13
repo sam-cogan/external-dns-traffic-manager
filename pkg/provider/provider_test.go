@@ -16,11 +16,12 @@ import (
 )
 
 type fakeTM struct {
-	fail     string
-	calls    []string
-	profiles []*state.ProfileState
-	profile  *state.ProfileState
-	stateErr error
+	fail      string
+	calls     []string
+	profiles  []*state.ProfileState
+	profile   *state.ProfileState
+	stateErr  error
+	byProfile map[string]*state.ProfileState
 
 	updatedProfile      *trafficmanager.ProfileConfig
 	updatedEndpoint     *trafficmanager.EndpointConfig
@@ -51,9 +52,13 @@ func (f *fakeTM) UpdateProfile(_ context.Context, config *trafficmanager.Profile
 	f.updatedProfile = config
 	return &trafficmanager.ProfileState{}, f.call("update-profile")
 }
-func (f *fakeTM) DeleteProfile(_ context.Context, _, profileName string) error {
+func (f *fakeTM) DeleteProfile(_ context.Context, resourceGroup, profileName string) error {
 	f.deletedProfileNames = append(f.deletedProfileNames, profileName)
-	return f.call("delete-profile")
+	if err := f.call("delete-profile"); err != nil {
+		return err
+	}
+	delete(f.byProfile, resourceGroup+"/"+profileName)
+	return nil
 }
 func (f *fakeTM) CreateEndpoint(_ context.Context, _, _ string, cfg *trafficmanager.EndpointConfig) (*trafficmanager.EndpointState, error) {
 	f.createdEndpoint = cfg
@@ -63,17 +68,29 @@ func (f *fakeTM) UpdateEndpoint(_ context.Context, _, _ string, cfg *trafficmana
 	f.updatedEndpoint = cfg
 	return &trafficmanager.EndpointState{EndpointName: cfg.EndpointName}, f.call("update-endpoint")
 }
-func (f *fakeTM) DeleteEndpoint(_ context.Context, _, profileName, _, endpointName string) error {
+func (f *fakeTM) DeleteEndpoint(_ context.Context, resourceGroup, profileName, _, endpointName string) error {
 	f.deletedProfileNames = append(f.deletedProfileNames, profileName)
 	f.deletedEndpoints = append(f.deletedEndpoints, endpointName)
-	return f.call("delete-endpoint")
+	if err := f.call("delete-endpoint"); err != nil {
+		return err
+	}
+	if profile := f.byProfile[resourceGroup+"/"+profileName]; profile != nil {
+		delete(profile.Endpoints, endpointName)
+	}
+	return nil
 }
-func (f *fakeTM) GetProfileState(context.Context, string, string) (*state.ProfileState, error) {
+func (f *fakeTM) GetProfileState(_ context.Context, resourceGroup, profileName string) (*state.ProfileState, error) {
 	if err := f.call("state"); err != nil {
 		return nil, err
 	}
 	if f.stateErr != nil {
 		return nil, f.stateErr
+	}
+	if f.byProfile != nil {
+		if profile, ok := f.byProfile[resourceGroup+"/"+profileName]; ok {
+			return profile, nil
+		}
+		return nil, &azcore.ResponseError{StatusCode: http.StatusNotFound}
 	}
 	return f.profile, nil
 }
@@ -83,11 +100,13 @@ type fakeDNS struct {
 	createErr error
 	deleteErr error
 	created   []string
+	targets   []string
 	deleted   []string
 }
 
-func (f *fakeDNS) CreateOrUpdateCNAME(_ context.Context, name, _, _ string, _ int64) error {
+func (f *fakeDNS) CreateOrUpdateCNAME(_ context.Context, name, _, target string, _ int64) error {
 	f.created = append(f.created, name)
+	f.targets = append(f.targets, target)
 	if f.createErr != nil {
 		return f.createErr
 	}
@@ -408,6 +427,74 @@ func TestVanityMigrationRequiresReplacementFQDN(t *testing.T) {
 	}
 	if len(dns.deleted) != 0 || len(tm.deletedEndpoints) != 0 {
 		t.Fatal("cleaned up old resources without a replacement FQDN")
+	}
+}
+
+func TestProfileIdentityMigrationPreservesVanity(t *testing.T) {
+	for _, changeGroup := range []bool{false, true} {
+		t.Run(fmt.Sprintf("resource-group=%t", changeGroup), func(t *testing.T) {
+			p, tm, dns := testProvider()
+			oldEndpoint, newEndpoint := configuredEndpoint(), configuredEndpoint()
+			newProfile, newGroup := "replacement", "rg"
+			if changeGroup {
+				newGroup = "other-rg"
+				newEndpoint.ProviderSpecific = append(newEndpoint.ProviderSpecific,
+					ProviderSpecificProperty{Name: annotations.AnnotationResourceGroup, Value: newGroup})
+			}
+			newEndpoint.ProviderSpecific = append(newEndpoint.ProviderSpecific,
+				ProviderSpecificProperty{Name: annotations.AnnotationProfileName, Value: newProfile})
+			old := &state.ProfileState{ProfileName: "app-example-com-tm", FQDN: "old.trafficmanager.net",
+				Endpoints: map[string]*state.EndpointState{"192-0-2-1": {EndpointName: "192-0-2-1"}}}
+			replacement := &state.ProfileState{ProfileName: newProfile, FQDN: "new.trafficmanager.net",
+				Endpoints: map[string]*state.EndpointState{}}
+			tm.byProfile = map[string]*state.ProfileState{"rg/app-example-com-tm": old, newGroup + "/" + newProfile: replacement}
+			p.stateManager.SetProfile("app.example.com", old)
+			tm.fail = "delete-profile"
+			if err := p.updateEndpoint(context.Background(), oldEndpoint, newEndpoint); err == nil {
+				t.Fatal("expected old profile deletion failure")
+			}
+			tm.fail = ""
+			if err := p.updateEndpoint(context.Background(), oldEndpoint, newEndpoint); err != nil {
+				t.Fatalf("migration retry failed: %v", err)
+			}
+			if len(dns.deleted) != 0 || len(dns.targets) == 0 || dns.targets[len(dns.targets)-1] != replacement.FQDN {
+				t.Fatalf("replacement vanity record not preserved: targets=%v deletes=%v", dns.targets, dns.deleted)
+			}
+			got, ok := p.stateManager.GetProfile("app.example.com")
+			if !ok || got.ProfileName != newProfile || got.FQDN != replacement.FQDN {
+				t.Fatalf("replacement state not preserved: %+v", got)
+			}
+			if _, ok := tm.byProfile["rg/app-example-com-tm"]; ok {
+				t.Fatal("old profile was not deleted")
+			}
+		})
+	}
+}
+
+func TestProfileGroupMigrationRequiresNewProfileName(t *testing.T) {
+	p, tm, _ := testProvider()
+	oldEndpoint, newEndpoint := configuredEndpoint(), configuredEndpoint()
+	newEndpoint.ProviderSpecific = append(newEndpoint.ProviderSpecific,
+		ProviderSpecificProperty{Name: annotations.AnnotationResourceGroup, Value: "other-rg"})
+	if err := p.updateEndpoint(context.Background(), oldEndpoint, newEndpoint); err == nil {
+		t.Fatal("expected error for globally conflicting profile name")
+	}
+	if tm.createdProfile != nil || len(tm.deletedEndpoints) != 0 {
+		t.Fatal("attempted unsafe migration with conflicting profile name")
+	}
+}
+
+func TestProfileIdentityMigrationRejectsSharedOldProfile(t *testing.T) {
+	p, tm, dns := testProvider()
+	tm.profile.Endpoints["west"] = &state.EndpointState{EndpointName: "west"}
+	oldEndpoint, newEndpoint := configuredEndpoint(), configuredEndpoint()
+	newEndpoint.ProviderSpecific = append(newEndpoint.ProviderSpecific,
+		ProviderSpecificProperty{Name: annotations.AnnotationProfileName, Value: "replacement"})
+	if err := p.updateEndpoint(context.Background(), oldEndpoint, newEndpoint); err == nil {
+		t.Fatal("expected error for shared profile")
+	}
+	if tm.createdProfile != nil || len(dns.created) != 0 || len(tm.deletedEndpoints) != 0 {
+		t.Fatal("migration modified resources before rejecting shared profile")
 	}
 }
 

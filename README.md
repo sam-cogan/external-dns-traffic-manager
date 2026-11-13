@@ -239,6 +239,12 @@ spec:
 | `external-dns.kubernetes.io/webhook-traffic-manager-monitor-protocol` | No | HTTP | Health check protocol: "HTTP" or "HTTPS" |
 | `external-dns.kubernetes.io/webhook-traffic-manager-endpoint-status` | No | Enabled | Endpoint status: "Enabled" or "Disabled" |
 
+Changing a profile name or resource group migrates the endpoint to a replacement
+profile. For a resource-group move, choose a different profile name because
+Traffic Manager DNS names are globally unique. A profile identity change that
+keeps the same vanity hostname is rejected while the old profile has other
+endpoints, since switching the CNAME would strand those endpoints.
+
 ### Common Scenarios
 
 #### Multi-Region Active-Active
